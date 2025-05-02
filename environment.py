@@ -4,7 +4,8 @@ import gymnasium as gym
 import numpy as np
 from ray.rllib.env import MultiAgentEnv
 
-from agents import StudentAgent, TeacherAgent
+from agents import BLOOM_LEVEL_MAP, StudentAgent, TeacherAgent
+from utils import analyze_text_for_bloom
 
 
 class ClassroomEnv(MultiAgentEnv):
@@ -36,34 +37,34 @@ class ClassroomEnv(MultiAgentEnv):
                 ["beginner"] * (self.num_students - len(student_types))
             )
 
-        # Initialize students with their respective types
         self.students = {}
         for i in range(self.num_students):
             student_id = f"student_{i}"
             student_type = student_types[i]
             self.students[student_id] = StudentAgent(student_id, student_type)
 
-        # Collect all agent IDs
         self._agent_ids = {self.teacher.agent_id}
         self._agent_ids.update(self.students.keys())
-
-        # state variables
         self.current_step = 0
 
         # Define observation spaces and action spaces for all agents
         self.observation_spaces = {}
 
-        # Teacher observes all students' knowledge levels
+        # TODO: right now the teacher's observation space is all the student's bloom levels
+        # * We can try with this, and run another experiment where it observes other things as well or something different
+        # Teacher observes all students' boom levels
         if self.num_students == 1:
-            # If there's only one student, keep the simple observation space
+            # Use Discrete if only 1 student (easier for simple networks)
+            # Note: Bloom levels are 1-6, Discrete space is 0-5. So its shifted by -1 in _get_obs.
             self.observation_spaces[self.teacher.agent_id] = gym.spaces.Discrete(
-                StudentAgent._NUM_KNOWLEDGE_LEVELS
+                StudentAgent.NUM_BLOOM_LEVELS
             )
         else:
-            # For multiple students, teacher observes an array of knowledge levels
+            # Use Box for multiple students
+            # Note: Box low=1, high=6 to represent actual Bloom levels
             self.observation_spaces[self.teacher.agent_id] = gym.spaces.Box(
-                low=0,
-                high=StudentAgent._NUM_KNOWLEDGE_LEVELS - 1,
+                low=1,
+                high=StudentAgent.NUM_BLOOM_LEVELS,
                 shape=(self.num_students,),
                 dtype=np.int32,
             )
@@ -71,7 +72,7 @@ class ClassroomEnv(MultiAgentEnv):
         # Each student observes their own knowledge level
         for student_id in self.students:
             self.observation_spaces[student_id] = gym.spaces.Discrete(
-                StudentAgent._NUM_KNOWLEDGE_LEVELS
+                StudentAgent.NUM_BLOOM_LEVELS
             )
 
         self.action_spaces = {}
@@ -84,6 +85,9 @@ class ClassroomEnv(MultiAgentEnv):
             self.action_spaces[student_id] = gym.spaces.Discrete(
                 StudentAgent.NUM_ACTIONS
             )
+
+        print(f"  Observation Spaces: {self.observation_spaces}")
+        print(f"  Action Spaces: {self.action_spaces}")
 
     def reset(self, *, seed=None, options=None):
         """Resets the environment and agents to initial states.
@@ -100,26 +104,20 @@ class ClassroomEnv(MultiAgentEnv):
         observations = self._get_obs()
         infos = self._get_infos()  # Get base infos
 
-        # Clear any lingering LLM outputs from previous episode infos
-        # infos[self.teacher.agent_id].pop("last_student_question", None)
         infos[self.teacher.agent_id].pop("last_teacher_explanation", None)
-
         for student_id in self.students:
             infos[student_id].pop("last_student_question", None)
-            # infos[student_id].pop("last_teacher_explanation", None)
-
+            infos[student_id].pop("question_bloom_level", None)
         return observations, infos
 
     def step(self, action_dict):
-        """Advances the environment by one step.
-
-        Args:
-            action_dict (dict): Actions from each agent, e.g., {"teacher_0": 0, "student_0": 1}
-
-        Returns:
-            tuple: (observations, rewards, terminated flag, truncated flag, infos as dict)
         """
+        Advances the environment by one step, triggers LLM calls, analyzes
+        question Bloom level, and calculates ZPD/Bloom-based rewards.
 
+        TODO: area of improvement - have teacher generate personalized explanations
+        TODO: area of improvement - change the termination or success criteria for the teacher?
+        """
         self.current_step += 1
 
         teacher_action = action_dict[self.teacher.agent_id]
@@ -127,230 +125,272 @@ class ClassroomEnv(MultiAgentEnv):
         print(f"\n--- Step {self.current_step} ---")
         print(f"Teacher Action: {teacher_action}")
 
-        # Store old knowledge levels for reward calculation
-        old_knowledge = {
-            student_id: student.knowledge
+        # Store old Bloom levels for reward calculation
+        old_bloom_levels = {
+            student_id: student.current_bloom_level
             for student_id, student in self.students.items()
         }
 
-        # Track if any knowledge increased and capture student actions
-        knowledge_increased = {student_id: False for student_id in self.students}
+        # Process student actions, update states, and trigger LLM calls
+        level_advanced = {student_id: False for student_id in self.students}
         student_actions = {}
+        questions = {}
+        estimated_bloom_levels = {}  # Store analysis results
 
-        # Process student actions and update their states
         for student_id, student in self.students.items():
             if student_id in action_dict:
                 student_action = action_dict[student_id]
                 student_actions[student_id] = student_action
-                print(f"{student_id} Action: {student_action}")
+                print(
+                    f"{student_id} Action: {student_action} (Current Bloom: {student.current_bloom_level})"
+                )
 
-                # Update student state based on teacher's action and their own action
-                knowledge_increased[student_id] = student.update_state(
+                # Update student state (Bloom level)
+                level_advanced[student_id] = student.update_state(
                     teacher_action, student_action
                 )
+
+                # If student asks a question, generate it and analyze its Bloom level
+                if student_action == StudentAgent.ACTION_ASK:
+                    question_text = student.generate_question(self.topic)
+                    questions[student_id] = question_text
+                    print(f"[LLM Output] {student_id} Question: {question_text}")
+
+                    student_level_desc = BLOOM_LEVEL_MAP.get(
+                        student.current_bloom_level, "Unknown"
+                    )
+                    estimated_level = analyze_text_for_bloom(
+                        question_text, student_level_desc, self.topic
+                    )
+                    estimated_bloom_levels[student_id] = estimated_level
+                    student.last_question_bloom_level = (
+                        estimated_level  # Store in agent state
+                    )
             else:
                 print(f"Warning: No action provided for {student_id}")
 
-        # Capture new knowledge levels
-        new_knowledge = {
-            student_id: student.knowledge
+        # Teacher generates explanation if applicable (after student actions)
+        explanation = None
+        if (
+            teacher_action == TeacherAgent.ACTION_SIMPLE
+            or teacher_action == TeacherAgent.ACTION_COMPLEX
+        ):
+            # Generate explanation based on average Bloom level for simplicity
+            avg_bloom_level = round(
+                sum(s.current_bloom_level for s in self.students.values())
+                / self.num_students
+            )
+            explanation = self.teacher.generate_explanation(avg_bloom_level, self.topic)
+            print(
+                f"[LLM Output] Teacher Explanation (for avg level {avg_bloom_level}): {explanation}"
+            )
+
+        # Capture new Bloom levels
+        new_bloom_levels = {
+            student_id: student.current_bloom_level
             for student_id, student in self.students.items()
         }
+        print(f"Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}")
 
-        # Trigger LLM calls based on specific actions
-        explanation = None
-        questions = {}
-
-        if teacher_action == TeacherAgent.ACTION_SIMPLE:
-            # TODO: area of improvement - generate personalized explanations
-            # For simplicity, teacher generates one explanation for all students
-            # Could be extended to generate personalized explanations
-            avg_knowledge = sum(
-                student.knowledge for student in self.students.values()
-            ) / len(self.students)
-            explanation = self.teacher.generate_explanation(
-                round(avg_knowledge), self.topic
-            )
-            # TODO: see if generate_explanation() with avg_knowledge would work like this
-            print(f"[LLM Output] Teacher Explanation: {explanation}")
-        elif teacher_action == TeacherAgent.ACTION_COMPLEX:
-            # TODO: add a different explanation type here
-            pass
-
-        for student_id, student in self.students.items():
-            if (
-                student_id in student_actions
-                and student_actions[student_id] == StudentAgent.ACTION_ASK
-            ):
-                questions[student_id] = student.generate_question(self.topic)
-                print(f"[LLM Output] {student_id} Question: {questions[student_id]}")
-
-        # Calculate rewards based on the state transitions
+        # calculate rewards
         rewards = self._calculate_rewards(
-            teacher_action, student_actions, old_knowledge, new_knowledge
+            teacher_action,
+            student_actions,
+            old_bloom_levels,
+            new_bloom_levels,
+            level_advanced,
+            estimated_bloom_levels,  # Pass estimated levels from analysis
         )
+        print(f"Rewards calculated: {rewards}")
 
-        # Check for termination (all students reached high knowledge) and truncation (max steps reached)
-        # TODO: area of improvement - do we need all students to reach high knowledge?
-        all_students_high_knowledge = all(
-            knowledge == StudentAgent.KNOWLEDGE_HIGH
-            for knowledge in new_knowledge.values()
+        # Terminate if all students reach the highest Bloom level
+        all_students_max_bloom = all(
+            level == StudentAgent.NUM_BLOOM_LEVELS
+            for level in new_bloom_levels.values()
         )
-        terminate_episode = all_students_high_knowledge
+        terminate_episode = all_students_max_bloom
         truncate_episode = self.current_step >= self.max_steps
 
         terminated = {agent_id: terminate_episode for agent_id in self._agent_ids}
         truncated = {agent_id: truncate_episode for agent_id in self._agent_ids}
-        # ! ^^ set individual flags for now. TODO: see if we need to change this
-
         terminated["__all__"] = terminate_episode
         truncated["__all__"] = truncate_episode
 
+        # get observations and infos
         observations = self._get_obs()
         infos = self._get_infos()
 
-        # add the last_teacher_explanation and last_student_question to infos
+        # add LLM outputs and analysis to infos
         if explanation:
-            # we don't need to store the teacher explanation for each student anymore since its the same explanation for all
-            # infos[self.student.agent_id]["last_teacher_explanation"] = explanation
             infos[self.teacher.agent_id]["last_teacher_explanation"] = explanation
-
         for student_id, question in questions.items():
-            # every student has a different question so we don't need to store it in the teacher's info
-            # infos[self.teacher.agent_id][
-            #     "last_student_question"
-            # ] = question  # Teacher gets the last question asked
             infos[student_id]["last_student_question"] = question
+            # Also add the estimated bloom level from analysis
+            if student_id in estimated_bloom_levels:
+                infos[student_id]["question_bloom_level"] = estimated_bloom_levels[
+                    student_id
+                ]
 
         return observations, rewards, terminated, truncated, infos
 
     def _get_obs(self):
-        """Gets the current observations for each agent"""
-
+        """Gets the current observations for each agent based on Bloom levels."""
         observations = {}
+        student_bloom_levels = [s.current_bloom_level for s in self.students.values()]
 
-        # Teacher's observation depends on the number of students
+        # Teacher observation - observes all students' Bloom levels
         if self.num_students == 1:
-            # For a single student, the teacher observes that student's knowledge level
-            student_id = next(iter(self.students))
-            observations[self.teacher.agent_id] = self.students[
-                student_id
-            ].get_observation()
+            # Shift by -1 for Discrete space (0-5)
+            observations[self.teacher.agent_id] = student_bloom_levels[0] - 1
         else:
-            # For multiple students, the teacher observes an array of knowledge levels
+            # Use actual Bloom levels (1-6) for Box space
             observations[self.teacher.agent_id] = np.array(
-                [student.get_observation() for student in self.students.values()]
+                student_bloom_levels, dtype=np.int32
             )
 
-        # Each student observes their own knowledge level
-        for student_id, student in self.students.items():
-            observations[student_id] = student.get_observation()
+        # Student observations - each student observes their own Bloom level
+        for i, (student_id, _) in enumerate(self.students.items()):
+            observations[student_id] = student_bloom_levels[i] - 1
 
         return observations
 
     def _get_infos(self):
-        """Gets the current infos for each agent"""
-
+        """Gets auxiliary information, including Bloom levels."""
         infos = {}
-
-        # Teacher's info includes knowledge levels of all students
         teacher_info = {
-            f"{student_id}_knowledge": student.knowledge
-            for student_id, student in self.students.items()
+            f"{sid}_bloom_level": s.current_bloom_level
+            for sid, s in self.students.items()
         }
-        teacher_info["class_avg_knowledge"] = sum(
-            student.knowledge for student in self.students.values()
-        ) / len(self.students)
+        teacher_info["class_avg_bloom"] = (
+            sum(s.current_bloom_level for s in self.students.values())
+            / self.num_students
+        )
         infos[self.teacher.agent_id] = teacher_info
 
-        # Each student's info includes their own knowledge and type
+        # Student info
         for student_id, student in self.students.items():
             infos[student_id] = {
-                "self_knowledge": student.knowledge,
+                "self_bloom_level": student.current_bloom_level,
                 "student_type": student.student_type,
             }
-        # TODO: do we also want to add the last_student_question and last_teacher_explanation to the infos?
         return infos
 
-    def _calculate_rewards(
-        self, teacher_action, student_actions, old_knowledge, new_knowledge
+    def _calculate_student_reward(
+        self,
+        student_id,
+        student_action,
+        old_level,
+        new_level,
+        level_advanced,
+        teacher_action,
+        rewards,
+        estimated_question_levels,
     ):
-        """Calculates rewards based on the state transition and actions.
+        # TODO: all the numbers here being added/subtracted are arbitrary - need to find good values or tune them or wtv
+        
+        # --- ZPD Check ---
+        # Define if teacher action was appropriate for the student's ZPD (old_level)
+        in_zpd = False
+        teacher_zpd_bonus_delta = 0.0
+        teacher_zpd_penalty_delta = 0.0
+        student_bloom_bonus_total_delta = 0.0
+        if teacher_action == TeacherAgent.ACTION_SIMPLE \
+            and old_level <= StudentAgent.BLOOM_UNDERSTAND \
+            or teacher_action == TeacherAgent.ACTION_COMPLEX \
+            and old_level >= StudentAgent.BLOOM_APPLY:
+            in_zpd = True
+            teacher_zpd_bonus_delta += 0.1  # Small bonus per student helped within ZPD
+        elif teacher_action == TeacherAgent.ACTION_COMPLEX \
+            and old_level <= StudentAgent.BLOOM_UNDERSTAND:
+            teacher_zpd_penalty_delta -= 0.15
 
-        Args:
-            teacher_action (int): The action taken by the teacher
-            student_actions (dict): Dictionary mapping student IDs to their actions
-            old_knowledge (dict): Dictionary mapping student IDs to their previous knowledge levels
-            new_knowledge (dict): Dictionary mapping student IDs to their current knowledge levels
+        # --- Reward for Bloom Level Advancement ---
+        if level_advanced[student_id]:
+            advancement_reward = 1.5  # Base reward for advancing a level
+            if in_zpd:
+                advancement_reward += 0.5  # Bonus if teacher action was in ZPD
+            rewards[student_id] += advancement_reward
 
-        Returns:
-            dict: Dictionary mapping agent IDs to their rewards
+        # --- Reward for Asking High-Level Questions ---
+        if student_action == StudentAgent.ACTION_ASK:
+            # Use the estimated Bloom level from LLM analysis
+            # Default to 1 if no analysis
+            question_level = estimated_question_levels.get(student_id, 1)
+            
+            # Reward proportional to the question level (scaled)
+            bloom_reward = (question_level / StudentAgent.NUM_BLOOM_LEVELS) * 0.5  # Max 0.5 reward
+            rewards[student_id] += bloom_reward
+            student_bloom_bonus_total_delta += bloom_reward  # Accumulate for potential teacher reward
+
+        # --- Goal Achievement Bonus (Reaching Max Bloom Level) ---
+        if new_level == StudentAgent.NUM_BLOOM_LEVELS and old_level < StudentAgent.NUM_BLOOM_LEVELS:
+            rewards[student_id] += 5.0  # Bonus for reaching highest level
+
+        return teacher_zpd_bonus_delta, teacher_zpd_penalty_delta, student_bloom_bonus_total_delta
+    
+    def _calculate_teacher_reward(self, rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
+                                  student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty):
+        # TODO: all the numbers here being added/subtracted are arbitrary - need to find good values or tune them or wtv
+        # Base reward for average advancement (simple version)
+        avg_advancement = sum(level_advanced.values()) / self.num_students
+        rewards[self.teacher.agent_id] += avg_advancement * 1.0
+
+        # Apply accumulated ZPD bonuses/penalties
+        rewards[self.teacher.agent_id] += teacher_zpd_bonus
+        rewards[self.teacher.agent_id] += teacher_zpd_penalty
+
+        # Reward teacher for eliciting high-level questions (average Bloom bonus given to students)
+        if self.num_students > 0:
+            rewards[self.teacher.agent_id] += (
+                student_bloom_bonus_total / self.num_students
+            )
+
+        # Goal achievement bonus for teacher (all students reach max level)
+        if all(level == StudentAgent.NUM_BLOOM_LEVELS for level in new_bloom_levels.values()) \
+            and not all(level == StudentAgent.NUM_BLOOM_LEVELS for level in old_bloom_levels.values()):
+            rewards[self.teacher.agent_id] += 5.0
+
+    def _calculate_rewards(
+        self,
+        teacher_action,
+        student_actions,
+        old_bloom_levels,
+        new_bloom_levels,
+        level_advanced,
+        estimated_question_levels,
+    ):
+        """
+        Calculates rewards incorporating Bloom's Taxonomy and Zone of Proximal Development (ZPD).
         """
         rewards = {agent_id: 0.0 for agent_id in self._agent_ids}
+        teacher_zpd_bonus = 0.0
+        teacher_zpd_penalty = 0.0
+        student_bloom_bonus_total = 0.0
 
-        # Calculate average knowledge improvement for teacher reward
-        total_improvement = 0
-        num_students_improved = 0
+        # calculate student rewards
+        for student_id, _ in self.students.items():
+            old_level = old_bloom_levels[student_id]
+            new_level = new_bloom_levels[student_id]
+            student_action = student_actions.get(student_id, None)
 
-        for student_id in self.students:
-            # --- Core Reward: Knowledge Improvement ---
-            knowledge_improved = new_knowledge[student_id] > old_knowledge[student_id]
-            if knowledge_improved:
-                # Student gets reward for improving
-                rewards[student_id] += 1.0
-                total_improvement += 1
-                num_students_improved += 1
+            teacher_zpd_bonus_delta, teacher_zpd_penalty_delta, student_bloom_bonus_total_delta = self._calculate_student_reward(
+                student_id,
+                student_action,
+                old_level,
+                new_level,
+                level_advanced,
+                teacher_action,
+                rewards,
+                estimated_question_levels,
+            )
+            
+            teacher_zpd_bonus += teacher_zpd_bonus_delta
+            teacher_zpd_penalty += teacher_zpd_penalty_delta
+            student_bloom_bonus_total += student_bloom_bonus_total_delta
 
-            # --- Contextual Student Rewards/Penalties ---
-            if student_id in student_actions:
-                student_action = student_actions[student_id]
-                if student_action == StudentAgent.ACTION_ASK:
-                    if old_knowledge[student_id] == StudentAgent.KNOWLEDGE_LOW:
-                        rewards[student_id] += 0.2  # Encourage beginners to ask
-                    else:
-                        rewards[student_id] += 0.05  # Small reward for asking otherwise
-
-            # --- Goal Achievement Bonus ---
-            if (
-                new_knowledge[student_id] == StudentAgent.KNOWLEDGE_HIGH
-                and old_knowledge[student_id] < StudentAgent.KNOWLEDGE_HIGH
-            ):
-                rewards[student_id] += 5.0  # Big bonus for reaching high knowledge
-
-        # --- Teacher Rewards ---
-        # Base reward based on how many students improved
-        if num_students_improved > 0:
-            # Scale reward by percentage of students who improved
-            improvement_percentage = num_students_improved / len(self.students)
-            rewards[self.teacher.agent_id] += improvement_percentage * 1.0
-
-        # Contextual teacher rewards/penalties based on class composition
-        low_knowledge_count = sum(
-            1 for k in old_knowledge.values() if k == StudentAgent.KNOWLEDGE_LOW
-        )
-        high_knowledge_count = sum(
-            1 for k in old_knowledge.values() if k == StudentAgent.KNOWLEDGE_HIGH
-        )
-
-        # Penalize using complex teaching when most students are beginners
-        if (
-            teacher_action == TeacherAgent.ACTION_COMPLEX
-            and low_knowledge_count > len(self.students) / 2
-        ):
-            rewards[self.teacher.agent_id] -= 0.5
-
-        # Reward using simple teaching when most students are beginners
-        elif (
-            teacher_action == TeacherAgent.ACTION_SIMPLE
-            and low_knowledge_count > len(self.students) / 2
-        ):
-            rewards[self.teacher.agent_id] += 0.2
-
-        # Goal achievement bonus for teacher when all students reach high knowledge
-        if all(
-            k == StudentAgent.KNOWLEDGE_HIGH for k in new_knowledge.values()
-        ) and not all(k == StudentAgent.KNOWLEDGE_HIGH for k in old_knowledge.values()):
-            rewards[self.teacher.agent_id] += 5.0
+        # calculate teacher rewards
+        self._calculate_teacher_reward(rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
+                                       student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty)
 
         return rewards
 
