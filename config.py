@@ -24,6 +24,7 @@ DEFAULT_LLM_CONFIG = {
     "temperature": 0.7,
     "top_p": 0.9,
     "max_output_tokens": 150,
+    "requests_per_minute": 25,  # Gemini-2.0-flash-lite takes 30 requests per minute, so do a bit less
 }
 
 
