@@ -17,8 +17,11 @@ def get_tmp_spaces(env_config):
 
     teacher_obs_space = temp_env.observation_spaces["teacher_0"]
     teacher_action_space = temp_env.action_spaces["teacher_0"]
-    student_obs_space = temp_env.observation_spaces["student_0"]
-    student_action_space = temp_env.action_spaces["student_0"]
+
+    # All students share the same observation and action space, so just grab the first one
+    student_id = list(temp_env.students.keys())[0] if temp_env.students else "student_0"
+    student_obs_space = temp_env.observation_spaces[student_id]
+    student_action_space = temp_env.action_spaces[student_id]
 
     return (
         teacher_obs_space,
@@ -133,6 +136,8 @@ def main():
     algo_config = create_algo_config(DEFAULT_ENV_CONFIG)
 
     print("Full PPO config:\n", pretty_print(algo_config.to_dict()))
+    print(f"Training with {DEFAULT_ENV_CONFIG['num_students']} students of " \
+          + f"types: {DEFAULT_ENV_CONFIG['student_types']}")
     algo = algo_config.build()
     train(num_iterations=DEFAULT_TRAINING_CONFIG["num_iterations"], algo=algo)
 

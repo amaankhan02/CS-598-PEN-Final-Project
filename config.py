@@ -1,14 +1,17 @@
 import os
+
 from dotenv import load_dotenv
 
-load_dotenv()   # load the environment variables from the .env file
+load_dotenv()  # load the environment variables from the .env file
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GEMINI_MODEL_NAME = "gemini-2.0-flash-lite" # has the highest RPM
+GEMINI_MODEL_NAME = "gemini-2.0-flash-lite"  # has the highest RPM
 
 DEFAULT_ENV_CONFIG = {
     "max_steps": 20,
     "topic": "Astronomy",
+    "num_students": 3,
+    "student_types": ["beginner", "intermediate", "advanced"],
 }
 
 DEFAULT_TRAINING_CONFIG = {
@@ -33,6 +36,7 @@ def validate_config():
         )
     print("Configuration loaded successfully.")
     print(f"  Using Gemini Model: {GEMINI_MODEL_NAME}")
+
 
 # Automatically validate when this module is imported
 validate_config()
