@@ -1,4 +1,4 @@
-
+from collections import OrderedDict
 
 class TeacherAgent:
     
@@ -52,7 +52,7 @@ class StudentAgent:
         self.knowledge = initial_knowledge
     
     def reset(self):
-        """Resets the student's knwoledge to the initial level
+        """Resets the student's knowledge to the initial level
         """
         self.knowledge = self.inital_knowledge
         # TODO: idk if we really need to do that but lets see
