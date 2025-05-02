@@ -3,7 +3,7 @@ import time
 import google.generativeai as genai
 
 import config
-
+import re
 
 class LLMClient:
     """
@@ -64,7 +64,7 @@ class LLMClient:
 
         self.last_request_time = time.time()
 
-    def get_response(self, prompt, max_retries=3, delay=2):
+    def get_response(self, prompt, max_retries=3, delay=2, specific_gen_config=None):
         """
         Sends a prompt to the configured Gemini model and returns the response.
 
@@ -79,6 +79,8 @@ class LLMClient:
         """
         if self.model is None:
             return "[Error: LLM Model not initialized]"
+        
+        current_gen_config = specific_gen_config if specific_gen_config else self.generation_config
 
         retries = 0
         while retries < max_retries:
@@ -87,7 +89,7 @@ class LLMClient:
 
                 response = self.model.generate_content(
                     prompt,
-                    generation_config=self.generation_config,
+                    generation_config=current_gen_config,
                 )
                 if response.candidates and response.candidates[0].content.parts:
                     return response.candidates[0].content.parts[0].text.strip()
@@ -158,6 +160,61 @@ def get_gemini_response(prompt, max_retries=3, delay=2):
         return llm_client.get_response(prompt, max_retries, delay)
     else:
         return "[Error: Global LLM Client not available]"
+
+def analyze_text_for_bloom(text_to_analyze, student_level_desc="unknown", topic="the topic"):
+    """
+    Uses the LLM to estimate the Bloom's Taxonomy level of the provided text.
+
+    Args:
+        text_to_analyze (str): The student's question or statement.
+        student_level_desc (str): Description of the student's current Bloom level.
+        topic (str): The topic being discussed.
+
+    Returns:
+        int: The estimated Bloom's level (1-6), or 1 as a fallback on error.
+    """
+    if not llm_client:
+        print("[Warning] LLM Client not available for Bloom analysis.")
+        return 1 # Fallback level
+
+    prompt = f"""
+    Analyze the following student's text, generated while learning about '{topic}'.
+    The student is currently thinking at the '{student_level_desc}' stage (Bloom's Taxonomy).
+
+    Student Text: "{text_to_analyze}"
+
+    Based *only* on the text provided, estimate which level of Bloom's Taxonomy (1-6) it best represents:
+    1: Remembering (Recall facts, basic concepts)
+    2: Understanding (Explain ideas, concepts)
+    3: Applying (Use information in new situations)
+    4: Analyzing (Draw connections among ideas)
+    5: Evaluating (Justify a stand or decision)
+    6: Creating (Produce new or original work)
+
+    Respond with ONLY the integer number (1, 2, 3, 4, 5, or 6). Do not add any other text or explanation.
+    Integer Level: """ # Prompt designed for easy parsing
+
+    # Use a slightly different generation config for classification - lower temperature
+    analysis_gen_config = genai.GenerationConfig(temperature=0.2, max_output_tokens=5)
+    response = llm_client.get_response(prompt, specific_gen_config=analysis_gen_config)
+
+    # Attempt to parse the integer response
+    try:
+        # Find the first integer in the response string
+        match = re.search(r'\d+', response)
+        if match:
+            level = int(match.group(0))
+            # Clamp the value between 1 and 6
+            level = max(1, min(level, 6))
+            print(f"[LLM Analysis] Text: '{text_to_analyze[:50]}...' -> Estimated Bloom Level: {level}")
+            return level
+        else:
+            print(f"[Warning] Could not parse Bloom level integer from LLM response: '{response}'. Defaulting to 1.")
+            return 1 # Fallback level
+    except Exception as e:
+        print(f"[Error] Failed to parse Bloom level from LLM response '{response}': {e}. Defaulting to 1.")
+        return 1 # Fallback level
+
 
 
 def test_llm():
