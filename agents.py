@@ -73,7 +73,7 @@ class StudentAgent:
     BLOOM_CREATE = 6
     NUM_BLOOM_LEVELS = 6 # Max level
 
-    _NUM_KNOWLEDGE_LEVELS = 3  # used for observation space def
+    # _NUM_KNOWLEDGE_LEVELS = 3  # used for observation space def
 
     # Define student types with their learning coefficients and initial knowledge
     # TODO: change the knowledge and learning coefficients to be more realistic
