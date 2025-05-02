@@ -8,9 +8,8 @@ from ray.rllib.policy.policy import PolicySpec
 from ray.tune.logger import pretty_print
 
 from agents import StudentAgent, TeacherAgent
-
-# Import the custom environment
 from environment import ClassroomEnv
+from config import DEFAULT_ENV_CONFIG, DEFAULT_TRAINING_CONFIG
 
 
 def get_tmp_spaces(env_config):
@@ -117,19 +116,21 @@ def create_algo_config(env_config):
     return algo_config
 
 def main():
-    ray.shutdown()  # Shutdown previous instances if any
+    # shutdown previous instances if any
+    ray.shutdown()  
+    
     # local_mode=True can be helpful for debugging but runs sequentially.  # todo: read on what local_mode is
     ray.init(num_cpus=1, include_dashboard=False, ignore_reinit_error=True)
+    
     tune.register_env(
         "classroom_v1", lambda config: ClassroomEnv(config)
     )  # This makes the environment name ("classroom_v1") available to RLlib.
     
-    env_config = {"max_steps": 20}
-    algo_config = create_algo_config(env_config)
+    algo_config = create_algo_config(DEFAULT_ENV_CONFIG)
     
     print("Full PPO config:\n", pretty_print(algo_config.to_dict()))
     algo = algo_config.build()
-    train(num_iterations=25, algo=algo)
+    train(num_iterations=DEFAULT_TRAINING_CONFIG["num_iterations"], algo=algo)
 
 
 if __name__ == "__main__":
