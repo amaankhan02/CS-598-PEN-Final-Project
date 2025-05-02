@@ -8,6 +8,7 @@ GEMINI_MODEL_NAME = "gemini-2.0-flash-lite" # has the highest RPM
 
 DEFAULT_ENV_CONFIG = {
     "max_steps": 20,
+    "topic": "Astronomy",
 }
 
 DEFAULT_TRAINING_CONFIG = {

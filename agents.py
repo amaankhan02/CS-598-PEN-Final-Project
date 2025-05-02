@@ -1,5 +1,5 @@
 from collections import OrderedDict
-
+from utils import get_gemini_response
 class TeacherAgent:
     
     # constants for the possible teacher actions. For now its just 2 actions
@@ -23,6 +23,27 @@ class TeacherAgent:
         """
         # No internal state for now so skip
         pass
+    
+    def generate_explanation(self, student_knowledge_level, topic):
+        """Generates an explanation for the given topic based on the student's knowledge level"""
+        
+        level_map = {
+            StudentAgent.KNOWLEDGE_LOW: "complete beginner",
+            StudentAgent.KNOWLEDGE_MEDIUM: "basic",
+            StudentAgent.KNOWLEDGE_HIGH: "very high",
+        }
+        level_desc = level_map.get(student_knowledge_level, "unknown")
+
+        # Simple prompt example
+        prompt = (
+            f"You are an expert teacher. Explain the core concept of '{topic}' "
+            f"in one or two simple sentences for a student who has a {level_desc} level of knowledge/understanding."
+        )
+
+        print(f"\n[{self.agent_id}] Generating explanation with prompt: '{prompt}'")
+        explanation = get_gemini_response(prompt)
+        print(f"[{self.agent_id}] Received explanation: '{explanation}'")
+        return explanation
     
 class StudentAgent:
     """Represents the student agent in the environment"""
@@ -48,14 +69,13 @@ class StudentAgent:
         """
         
         self.agent_id = agent_id
-        self.inital_knowledge = initial_knowledge
+        self.initial_knowledge = initial_knowledge
         self.knowledge = initial_knowledge
     
     def reset(self):
         """Resets the student's knowledge to the initial level
         """
-        self.knowledge = self.inital_knowledge
-        # TODO: idk if we really need to do that but lets see
+        self.knowledge = self.initial_knowledge
         
     def update_state(self, teacher_action, student_action) -> bool:
         """Updates the student's knowledge state based on teacher and self actions.
@@ -89,5 +109,24 @@ class StudentAgent:
     def get_observation(self): 
         """Returns the student's observable state (their knowledge level)"""
         return self.knowledge
-
     
+    def generate_question(self, topic):
+        """Generates a question for the given topic the student is learning about"""
+        
+        level_map = {
+            self.KNOWLEDGE_LOW: "I'm a complete beginner and don't understand much yet",
+            self.KNOWLEDGE_MEDIUM: "I have some basic understanding but need clarification",
+            self.KNOWLEDGE_HIGH: "I understand the basics but want to explore deeper",
+        }
+        level_desc = level_map.get(self.knowledge, "I have an unknown level of understanding")
+
+        # Simple prompt example
+        prompt = (
+            f"You are a student learning about '{topic}'. {level_desc}. "
+            f"Ask one specific, relevant question to your teacher to improve your understanding."
+        )
+
+        print(f"\n[{self.agent_id}] Generating question with prompt: '{prompt}'")
+        question = get_gemini_response(prompt)
+        print(f"[{self.agent_id}] Received question: '{question}'")
+        return question

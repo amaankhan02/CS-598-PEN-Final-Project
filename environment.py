@@ -23,6 +23,11 @@ class ClassroomEnv(MultiAgentEnv):
         self.teacher = TeacherAgent("teacher_0")
         self.student = StudentAgent("student_0")  # just defining one student for now
         self._agent_ids = {self.teacher.agent_id, self.student.agent_id}
+        
+        if "topic" not in config:
+            raise ValueError("'topic' must be provided in the config")
+        
+        self.topic = config["topic"]
 
         # state variables
         self.current_step = 0
@@ -85,6 +90,23 @@ class ClassroomEnv(MultiAgentEnv):
 
         teacher_action = action_dict[self.teacher.agent_id]
         student_action = action_dict[self.student.agent_id]
+        
+        print(f"\n--- Step {self.current_step} ---")
+        print(f"Actions: Teacher={teacher_action}, Student={student_action}")
+        
+        # Trigger LLM calls based on specific actions and print the output.
+        # TODO: Note that the LLM output does NOT affect the state or rewards yet - must add this later
+        if teacher_action == TeacherAgent.ACTION_SIMPLE:
+            # Teacher explains simply
+            explanation = self.teacher.generate_explanation(self.student.knowledge, self.topic)
+            # We just print it for now. Later, it could go into observation/info.
+            print(f"[LLM Output] Teacher Explanation: {explanation}")
+
+        if student_action == StudentAgent.ACTION_ASK:
+            # Student asks a question
+            question = self.student.generate_question(self.topic)
+            # Just print for now. Later, could go into teacher's observation/info.
+            print(f"[LLM Output] Student Question: {question}")
 
         old_knowledge = self.student.knowledge
 
