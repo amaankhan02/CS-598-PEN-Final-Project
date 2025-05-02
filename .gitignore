@@ -1,0 +1,62 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+env/
+venv/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# Conda environment files
+.conda/
+/conda-env/
+*.condarc
+*.yml
+!environment.yml
+
+# Ray specific
+ray_results/
+ray-results/
+ray_tmp/
+ray_bootstrap_config.yaml
+.ray/
+*.err
+*.out
+
+# ML checkpoints and logs
+checkpoints/
+logs/
+tensorboard/
+/models/
+*.h5
+*.pt
+*.pth
+*.onnx
+*.pb
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Project specific
+wandb/
+/data/
