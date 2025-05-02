@@ -8,8 +8,8 @@ from ray.rllib.policy.policy import PolicySpec
 from ray.tune.logger import pretty_print
 
 from agents import StudentAgent, TeacherAgent
-from environment import ClassroomEnv
 from config import DEFAULT_ENV_CONFIG, DEFAULT_TRAINING_CONFIG
+from environment import ClassroomEnv
 
 
 def get_tmp_spaces(env_config):
@@ -39,7 +39,8 @@ def print_metrics(result):
         print(
             f"Student Policy Mean Reward: {policy_reward_mean.get('student_policy', 'N/A')}"
         )
-        
+
+
 def train(num_iterations, algo):
     """Run the main training loop."""
     print(f"\nStarting training for {num_iterations} iterations...")
@@ -60,8 +61,11 @@ def train(num_iterations, algo):
 
     print(f"Checkpoint saved in directory: {checkpoint_dir}. Training finished.")
 
+
 def create_algo_config(env_config):
-    teacher_obs_space, teacher_action_space, student_obs_space, student_action_space = get_tmp_spaces(env_config)
+    teacher_obs_space, teacher_action_space, student_obs_space, student_action_space = (
+        get_tmp_spaces(env_config)
+    )
     algo_config = (
         PPOConfig()
         .environment(
@@ -115,19 +119,19 @@ def create_algo_config(env_config):
     )
     return algo_config
 
+
 def main():
     # shutdown previous instances if any
-    ray.shutdown()  
-    
+    ray.shutdown()
+
     # local_mode=True can be helpful for debugging but runs sequentially.  # todo: read on what local_mode is
     ray.init(num_cpus=1, include_dashboard=False, ignore_reinit_error=True)
-    
-    tune.register_env(
-        "classroom_v1", lambda config: ClassroomEnv(config)
-    )  # This makes the environment name ("classroom_v1") available to RLlib.
-    
+
+    # This makes the environment name ("classroom_v1") available to RLlib.
+    tune.register_env("classroom_v1", lambda config: ClassroomEnv(config))
+
     algo_config = create_algo_config(DEFAULT_ENV_CONFIG)
-    
+
     print("Full PPO config:\n", pretty_print(algo_config.to_dict()))
     algo = algo_config.build()
     train(num_iterations=DEFAULT_TRAINING_CONFIG["num_iterations"], algo=algo)

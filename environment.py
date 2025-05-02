@@ -34,16 +34,8 @@ class ClassroomEnv(MultiAgentEnv):
 
         # Define observation and actionspaces
         # Teacher and student observe the student's knowledge level for now and only that
-        student_obs_space = gym.spaces.Dict({"knowledge": gym.spaces.Discrete(StudentAgent._NUM_KNOWLEDGE_LEVELS)})
-        # teacher_obs_space = gym.spaces.Discrete(StudentAgent._NUM_KNOWLEDGE_LEVELS)
-        # student_obs_space = gym.spaces.Discrete(StudentAgent._NUM_KNOWLEDGE_LEVELS)
+        # student_obs_space = gym.spaces.Dict({"knowledge": gym.spaces.Discrete(StudentAgent._NUM_KNOWLEDGE_LEVELS)})
 
-        # self.observation_spaces = gym.spaces.Dict(
-        #     {
-        #         self.teacher.agent_id: student_obs_space,
-        #         self.student.agent_id: student_obs_space,
-        #     }
-        # )
         self.observation_spaces = {
             self.teacher.agent_id: gym.spaces.Discrete(StudentAgent._NUM_KNOWLEDGE_LEVELS),
             self.student.agent_id: gym.spaces.Discrete(StudentAgent._NUM_KNOWLEDGE_LEVELS),
@@ -66,14 +58,20 @@ class ClassroomEnv(MultiAgentEnv):
             tuple: (observation dicitionary, info dictionary)
         """
         super().reset(seed=seed)
-
         self.current_step = 0
         self.teacher.reset()
         self.student.reset()
-
+        
         observations = self._get_obs()
-        infos = self._get_infos()
-
+        infos = self._get_infos() # Get base infos
+        
+        # Clear any lingering LLM outputs from previous episode infos
+        infos[self.teacher.agent_id].pop("last_student_question", None)
+        infos[self.teacher.agent_id].pop("last_teacher_explanation", None)
+        
+        infos[self.student.agent_id].pop("last_student_question", None)
+        infos[self.student.agent_id].pop("last_teacher_explanation", None)
+        
         return observations, infos
 
     def step(self, action_dict):
@@ -95,22 +93,22 @@ class ClassroomEnv(MultiAgentEnv):
         print(f"Actions: Teacher={teacher_action}, Student={student_action}")
         
         # Trigger LLM calls based on specific actions and print the output.
-        # TODO: Note that the LLM output does NOT affect the state or rewards yet - must add this later
+        # TODO: Note that the LLM output does NOT affect the state, obs, or rewards yet - must add this later
+        explanation = None
+        question = None
         if teacher_action == TeacherAgent.ACTION_SIMPLE:
-            # Teacher explains simply
             explanation = self.teacher.generate_explanation(self.student.knowledge, self.topic)
-            # We just print it for now. Later, it could go into observation/info.
             print(f"[LLM Output] Teacher Explanation: {explanation}")
+        elif teacher_action == TeacherAgent.ACTION_COMPLEX:
+            # TODO: add a different explanation type here
+            pass
 
         if student_action == StudentAgent.ACTION_ASK:
-            # Student asks a question
             question = self.student.generate_question(self.topic)
-            # Just print for now. Later, could go into teacher's observation/info.
             print(f"[LLM Output] Student Question: {question}")
 
         old_knowledge = self.student.knowledge
 
-        # TODO: not using 'did_knowledge_increase' for now. see if we need this
         did_knowledge_increase = self.student.update_state(
             teacher_action, student_action
         )
@@ -120,11 +118,6 @@ class ClassroomEnv(MultiAgentEnv):
         rewards = self._calculate_rewards(
             teacher_action, student_action, old_knowledge, new_knowledge
         )
-        
-        print("Rewards: ", rewards)
-        print(f"Observation space: {self.observation_spaces}")
-        print(f"Returned observations: {self._get_obs()}")
-
 
         # check for termination (goal reached) and truncation (max steps reached)
         terminate_episode = new_knowledge == StudentAgent.KNOWLEDGE_HIGH
@@ -139,8 +132,16 @@ class ClassroomEnv(MultiAgentEnv):
         observations = self._get_obs()
         infos = self._get_infos()
         
-        print("[A] Observations: ", observations)
-        print("[A] Infos: ", infos)
+        # add the last_teacher_explanation and last_student_question to infos
+        if explanation:
+            infos[self.student.agent_id]["last_teacher_explanation"] = explanation
+            infos[self.teacher.agent_id]["last_teacher_explanation"] = explanation
+        if question:
+            infos[self.teacher.agent_id]["last_student_question"] = question
+            infos[self.student.agent_id]["last_student_question"] = question
+        
+        # print("[A] Observations: ", observations)
+        # print("[A] Infos: ", infos)
 
         return observations, rewards, terminated, truncated, infos
 
@@ -149,13 +150,8 @@ class ClassroomEnv(MultiAgentEnv):
         
         # for now, each teacher and student agents have the same observation
         student_knowledge = self.student.get_observation()
-        
         # * teacher's observation is the student's knowledge for now, so just return that
-        # agent_obs = {"knowledge": student_knowledge}
-        # return {
-        #     self.teacher.agent_id: agent_obs,
-        #     self.student.agent_id: agent_obs.copy(),
-        # }
+        
         return {
             self.teacher.agent_id: student_knowledge,
             self.student.agent_id: student_knowledge,
@@ -183,28 +179,30 @@ class ClassroomEnv(MultiAgentEnv):
         """
         rewards = {self.teacher.agent_id: 0.0, self.student.agent_id: 0.0}
 
-        # reward for knowledge improvement
+        # --- Core Reward: Knowledge Improvement ---
         if new_knowledge > old_knowledge:
             rewards[self.student.agent_id] += 1.0
             rewards[self.teacher.agent_id] += 1.0
 
-        # penalty for ineffective teaching
-        if (
-            teacher_action == TeacherAgent.ACTION_COMPLEX
-            and old_knowledge == StudentAgent.KNOWLEDGE_LOW
-        ):
-            rewards[self.teacher.agent_id] -= 0.5
+        # --- Contextual Teacher Rewards/Penalties ---
+        if teacher_action == TeacherAgent.ACTION_COMPLEX and old_knowledge == StudentAgent.KNOWLEDGE_LOW:
+            rewards[self.teacher.agent_id] -= 0.5    # Penalize teaching complex too early
+        elif teacher_action == TeacherAgent.ACTION_SIMPLE and old_knowledge == StudentAgent.KNOWLEDGE_LOW:
+            rewards[self.teacher.agent_id] += 0.1 # Small bonus for teaching simply to a beginner
 
-        # penalty/incentive for student action
+        # --- Contextual Student Rewards/Penalties ---
         if student_action == StudentAgent.ACTION_ASK:
-            rewards[self.student.agent_id] -= 0.1
-            # TODO: lol why do we wanna penalize when the student asks questions?
+            if old_knowledge == StudentAgent.KNOWLEDGE_LOW:
+                rewards[self.student.agent_id] += 0.2 # Encourage beginners to ask
+            else:
+                rewards[self.student.agent_id] += 0.05 # Small reward for asking otherwise
+        # Optionally add small reward for ACTION_STUDY? - nah cuz like what does it even mean to study... 
+        # elif student_action == StudentAgent.ACTION_STUDY:
+        #     rewards[self.student.agent_id] += 0.05
 
-        # goal achievement bonus
-        if (
-            new_knowledge == StudentAgent.KNOWLEDGE_HIGH
-            and old_knowledge < StudentAgent.KNOWLEDGE_HIGH
-        ):
+        # --- Goal Achievement Bonus ---
+        if (new_knowledge == StudentAgent.KNOWLEDGE_HIGH and
+            old_knowledge < StudentAgent.KNOWLEDGE_HIGH):
             rewards[self.teacher.agent_id] += 5.0
             rewards[self.student.agent_id] += 5.0
 
