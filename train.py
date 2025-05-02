@@ -123,7 +123,7 @@ def create_algo_config(env_config):
     return algo_config
 
 
-def main():
+def main(num_iterations=DEFAULT_TRAINING_CONFIG["num_iterations"]):
     # shutdown previous instances if any
     ray.shutdown()
 
@@ -139,12 +139,12 @@ def main():
     print(f"Training with {DEFAULT_ENV_CONFIG['num_students']} students of " \
           + f"types: {DEFAULT_ENV_CONFIG['student_types']}")
     algo = algo_config.build()
-    train(num_iterations=DEFAULT_TRAINING_CONFIG["num_iterations"], algo=algo)
+    train(num_iterations=num_iterations, algo=algo)
 
 
 if __name__ == "__main__":
     try:
-        main()
+        main(1)
     except Exception as e:
         print(f"\nAn unexpected error occurred during training: {e}")
         ray.shutdown()  # shutdown in case of an error

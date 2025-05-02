@@ -52,6 +52,9 @@ class TeacherAgent:
         return explanation
 
 
+# TODO: add feature to store the student's past questions
+# TODO: add feature to store like student's "notes" and that should be fed into each question. 
+# TODO: add feature where the teacher quizzes the student at the end of an episode? maybe? maybe based on the teachers quiz and rubric?
 class StudentAgent:
     """Represents the student agent in the environment"""
 
