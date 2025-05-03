@@ -149,6 +149,22 @@ except ValueError as e:
     print(f"Failed to create global LLMClient instance: {e}")
     llm_client = None  # Ensure it's None if creation fails
 
+def analyze_explanation_quality(text, topic="the topic"):
+    """
+    Classifies a teacher explanation on Bloom's 1‑6 scale, returns int.
+    """
+    prompt = f"""
+    Evaluate the following teacher explanation of '{topic}'.
+    Only output the Bloom's Taxonomy level (1‑6) that best describes
+    the cognitive complexity of the explanation.
+
+    Explanation: \"\"\"{text}\"\"\"
+
+    Integer Level:"""
+    resp = get_gemini_response(prompt, max_retries=3, delay=2)
+    m = re.search(r"\b([1-6])\b", resp)
+    return int(m.group(1)) if m else 1
+
 
 def get_gemini_response(prompt, max_retries=3, delay=2):
     """
