@@ -114,6 +114,7 @@ def create_algo_config(env_config):
             env_config=env_config,
             disable_env_checking=True,  # Disable for custom envs if needed, but check if issues arise
         )
+        .callbacks(ClassroomCallbacks)
         .framework("torch")  # Or "tf2"
         .rollouts(
             num_rollout_workers=1,  # Number of parallel workers for collecting samples
