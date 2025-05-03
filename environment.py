@@ -180,6 +180,7 @@ class ClassroomEnv(MultiAgentEnv):
                 sum(s.current_bloom_level for s in self.students.values())
                 / self.num_students
             )
+            # TODO: pass the student's zpd alignment to the teacher and have the teacher's response based on that as well
             explanation = self.teacher.generate_explanation(avg_bloom_level, self.topic)
             print(
                 f"[LLM Output] Teacher Explanation (for avg level {avg_bloom_level}): {explanation}"
@@ -220,18 +221,36 @@ class ClassroomEnv(MultiAgentEnv):
         observations = self._get_obs()
         infos = self._get_infos()
 
-        # add LLM outputs and analysis to infos
+        # add data to infos
+        self._add_zpd_alignment_info(infos, old_bloom_levels, teacher_action)    
+        self._add_question_explanation_analysis_info(infos, questions, estimated_bloom_levels, explanation)
+
+        return observations, rewards, terminated, truncated, infos
+    
+    # TODO: make sure this is correct
+    def _add_zpd_alignment_info(self, infos, old_bloom_levels, teacher_action):
+        for student_id, student in self.students.items():
+            old_level = old_bloom_levels[student_id]
+            in_zpd_step = 0 # 0 = neutral, 1 = in ZPD, -1 = complex too early
+            if (teacher_action == TeacherAgent.ACTION_SIMPLE and old_level <= StudentAgent.BLOOM_UNDERSTAND) or \
+            (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level >= StudentAgent.BLOOM_APPLY):
+                in_zpd_step = 1
+            elif (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level <= StudentAgent.BLOOM_UNDERSTAND):
+                in_zpd_step = -1
+        
+            # Add to the specific student's info dict
+            if student_id not in infos: 
+                infos[student_id] = {}      # Ensure dict exists
+            infos[student_id]["zpd_alignment"] = in_zpd_step
+            
+    def _add_question_explanation_analysis_info(self, infos, questions, estimated_bloom_levels, explanation):
         if explanation:
             infos[self.teacher.agent_id]["last_teacher_explanation"] = explanation
         for student_id, question in questions.items():
             infos[student_id]["last_student_question"] = question
             # Also add the estimated bloom level from analysis
             if student_id in estimated_bloom_levels:
-                infos[student_id]["question_bloom_level"] = estimated_bloom_levels[
-                    student_id
-                ]
-
-        return observations, rewards, terminated, truncated, infos
+                infos[student_id]["question_bloom_level"] = estimated_bloom_levels[student_id]
 
     def _get_obs(self):
         """Gets the current observations for each agent based on Bloom levels."""
@@ -294,19 +313,17 @@ class ClassroomEnv(MultiAgentEnv):
         teacher_zpd_bonus_delta = 0.0
         teacher_zpd_penalty_delta = 0.0
         student_bloom_bonus_total_delta = 0.0
-        if teacher_action == TeacherAgent.ACTION_SIMPLE \
-            and old_level <= StudentAgent.BLOOM_UNDERSTAND \
-            or teacher_action == TeacherAgent.ACTION_COMPLEX \
-            and old_level >= StudentAgent.BLOOM_APPLY:
+        if (teacher_action == TeacherAgent.ACTION_SIMPLE and old_level <= StudentAgent.BLOOM_UNDERSTAND) or \
+            (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level >= StudentAgent.BLOOM_APPLY):
             in_zpd = True
             teacher_zpd_bonus_delta += 0.1  # Small bonus per student helped within ZPD
-        elif teacher_action == TeacherAgent.ACTION_COMPLEX \
-            and old_level <= StudentAgent.BLOOM_UNDERSTAND:
+        elif (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level <= StudentAgent.BLOOM_UNDERSTAND):
             teacher_zpd_penalty_delta -= 0.15
 
         # --- Reward for Bloom Level Advancement ---
         if level_advanced[student_id]:
             advancement_reward = 1.5  # Base reward for advancing a level
+            # TODO: definitely change this - likely remove (if statement and +0.5 reward)
             if in_zpd:
                 advancement_reward += 0.5  # Bonus if teacher action was in ZPD
             rewards[student_id] += advancement_reward
@@ -325,14 +342,16 @@ class ClassroomEnv(MultiAgentEnv):
         # --- Goal Achievement Bonus (Reaching Max Bloom Level) ---
         if new_level == StudentAgent.NUM_BLOOM_LEVELS and old_level < StudentAgent.NUM_BLOOM_LEVELS:
             rewards[student_id] += 5.0  # Bonus for reaching highest level
-
+            # TODO: 5 might be kinda crazy high - LOW PRIORITY to change
+            
         return teacher_zpd_bonus_delta, teacher_zpd_penalty_delta, student_bloom_bonus_total_delta
     
     def _calculate_teacher_reward(self, rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
                                   student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty):
         # TODO: all the numbers here being added/subtracted are arbitrary - need to find good values or tune them or wtv
         # Base reward for average advancement (simple version)
-        avg_advancement = sum(level_advanced.values()) / self.num_students
+        avg_advancement = sum(level_advanced.values()) / self.num_students  # avg number of students that improved
+        # TODO: level_advanced consists of boolean values (improve or not) - we can change this to be how much they improved - how many bloom levels they jumped
         rewards[self.teacher.agent_id] += avg_advancement * 1.0
 
         # Apply accumulated ZPD bonuses/penalties

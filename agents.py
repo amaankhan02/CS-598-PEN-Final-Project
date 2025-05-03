@@ -44,8 +44,11 @@ class TeacherAgent:
 
         prompt = (
             f"You are an expert teacher. Explain the core concept of '{topic}' "
-            f"in one or two simple sentences for a student who is currently at the '{level_desc}' stage (Bloom's Taxonomy)."
+            f"in a concise and brief manner for a student who is currently at the '{level_desc}' stage (Bloom's Taxonomy)."
         )
+        # TODO: add few shot examples for bloom levels or explanation on what they mean so that the explanatino is better?
+        # TODO: update prommpt to include ZPD alignment
+        
         explanation = get_gemini_response(prompt)
         return explanation
 
@@ -128,7 +131,8 @@ class StudentAgent:
         # Cannot advance if already at max level
         if self.current_bloom_level >= self.NUM_BLOOM_LEVELS:
             return 0.0
-
+        # TODO: these probabilities are arbitrary - change this to be directly dependent on their bloom level and other things 
+        # * this can leave some students behind or cause slow learning. so change these values to be dependent on something to improve the results and speed of learning
         base_prob = 0.0
         # Define effectiveness of teacher actions based on current student Bloom level
         if teacher_action == TeacherAgent.ACTION_SIMPLE:
