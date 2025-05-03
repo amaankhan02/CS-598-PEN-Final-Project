@@ -12,6 +12,8 @@ DEFAULT_ENV_CONFIG = {
     "topic": "Astronomy",
     "num_students": 3,
     "student_types": ["beginner", "intermediate", "advanced"],
+    "teacher_reward_weights": [1.0, 0.5, 0.3, 0.5, 0.05] # [progress, equity, engagement, explanation‑quality, time‑penalty]
+    
 }
 
 DEFAULT_TRAINING_CONFIG = {
