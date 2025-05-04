@@ -216,7 +216,7 @@ class ClassroomEnv(MultiAgentEnv):
         #     for level in new_bloom_levels.values()
         # )
         # TODO: chnaged to it ending when any student reaches max bloom level
-        all_students_max_bloom = any(
+        all_students_max_bloom = all(
             level == StudentAgent.NUM_BLOOM_LEVELS
             for level in new_bloom_levels.values()
         )
