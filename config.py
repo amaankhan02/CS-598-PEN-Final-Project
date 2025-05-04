@@ -8,14 +8,14 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL_NAME = "gemini-2.0-flash-lite"  # has the highest RPM
 
 DEFAULT_ENV_CONFIG = {
-    "max_steps": 16,
+    "max_steps": 5,
     "topic": "Astronomy",
-    "num_students": 3,
+    "num_students": 1,
     "student_types": ["beginner", "intermediate", "advanced"],
 }
 
 DEFAULT_TRAINING_CONFIG = {
-    "num_iterations": 25,
+    "num_iterations": 1,
     "lr": 5e-5,
     "train_batch_size": 32, # 512 typically
     # episodes_per_iteration is not a direct parameter in RLlib 2.37.0

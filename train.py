@@ -23,11 +23,16 @@ class ClassroomCallbacks(DefaultCallbacks):
     
     def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
         """Process metrics at the end of each episode"""
+        print("--------------------------------")
         print(f"on_episode_end called for episode {self.episode_count + 1}")
         
         # Extract student IDs
-        student_ids = [agent_id for agent_id in episode.agent_rewards.keys() 
-                      if isinstance(agent_id, str) and agent_id.startswith("student")]
+        print(f"Episode rewards: {episode.agent_rewards}")
+        
+        # student_ids = [agent_id for agent_id in episode.agent_rewards.keys() 
+        #               if isinstance(agent_id, str) and agent_id.startswith("student")]
+        student_ids = [agent_id[0] for agent_id in episode.agent_rewards.keys() 
+               if isinstance(agent_id, tuple) and agent_id[0].startswith("student")]
         teacher_id = "teacher_0"  # Assuming teacher ID is consistent
         
         print(f"Found {len(student_ids)} students and teacher_id: {teacher_id}")
@@ -123,7 +128,8 @@ class ClassroomCallbacks(DefaultCallbacks):
         total_actions = 0
         
         # Get teacher actions
-        teacher_actions = episode.agent_actions.get(teacher_id, [])
+        # teacher_actions = episode.agent_actions.get(teacher_id, [])
+        teacher_actions = self.__get_actions(episode, teacher_id)
         
         # Process each step to determine ZPD matches
         for t in range(len(teacher_actions)):
@@ -160,7 +166,10 @@ class ClassroomCallbacks(DefaultCallbacks):
         from agents import TeacherAgent, StudentAgent
         
         # Get teacher actions
-        teacher_actions = episode.agent_actions.get(teacher_id, [])
+        # teacher_actions = episode.agent_actions.get(teacher_id, [])
+        # if not teacher_actions:
+        #     return
+        teacher_actions = self.__get_actions(episode, teacher_id)
         if not teacher_actions:
             return
             
@@ -226,6 +235,18 @@ class ClassroomCallbacks(DefaultCallbacks):
             
         if complex_actions > 0:
             episode.custom_metrics["complex_action_effectiveness"] = complex_advancements / complex_actions
+    
+    def __get_actions(self, episode, agent_id):
+        # actions = []
+        # for i, (agent_id, action) in enumerate(episode.actions.items()):
+        #     if agent_id == key_agent_id:
+        #         actions.append(action)
+        # return actions
+        # for agent_id in agent_ids:
+        if agent_id in episode.hist_data and "actions" in episode.hist_data[agent_id]:
+            return episode.hist_data[agent_id]["actions"]
+        return []
+
     
     def _track_student_behavior(self, episode, student_ids):
         """Track metrics related to student behavior"""
@@ -302,7 +323,8 @@ class ClassroomCallbacks(DefaultCallbacks):
         
         # 2. Student Action Distribution
         for student_id in student_ids:
-            student_actions = episode.agent_actions.get(student_id, [])
+            # student_actions = episode.agent_actions.get(student_id, [])
+            student_actions = self.__get_actions(episode, student_id)
             
             if student_actions:
                 study_count = sum(1 for a in student_actions if a == StudentAgent.ACTION_STUDY)
@@ -328,11 +350,12 @@ class ClassroomCallbacks(DefaultCallbacks):
         actions_by_level_type = {}
         
         for student_id in student_ids:
-            if (student_id in episode.agent_actions and 
-                student_id in episode.hist_data and 
-                "self_bloom_level" in episode.hist_data[student_id]):
-                
-                actions = episode.agent_actions[student_id]
+            student_actions = self.__get_actions(episode, student_id)
+            # if (student_id in episode.agent_actions and 
+            #     student_id in episode.hist_data and 
+            #     "self_bloom_level" in episode.hist_data[student_id]):
+            if student_actions and student_id in episode.hist_data and "self_bloom_level" in episode.hist_data[student_id]:
+                actions = student_actions
                 bloom_history = episode.hist_data[student_id]["self_bloom_level"]
                 
                 # Get student type if available
@@ -618,10 +641,10 @@ def train(num_iterations, algo):
             print(f"env_runners keys: {list(result['env_runners'].keys())}")
             if "episodes_this_iter" in result["env_runners"]:
                 print(f"Episodes this iteration: {result['env_runners']['episodes_this_iter']}")
-        if "custom_metrics" in result:
-            print(f"Custom metrics keys: {list(result['custom_metrics'].keys())}")
-        else:
-            print("No custom_metrics found in result!")
+            if "custom_metrics" in result["env_runners"]:
+                print(f"Custom metrics keys: {list(result['env_runners']['custom_metrics'].keys())}")
+            else:
+                print("No custom_metrics found in result!")
 
         # Print results
         print(f"\n--- Iteration {i+1}/{num_iterations} ---")
@@ -630,7 +653,7 @@ def train(num_iterations, algo):
         # Store iteration metrics
         metrics_by_iteration.append({
             "iteration": i+1,
-            "metrics": result.get("custom_metrics", {})
+            "metrics": result["env_runners"].get("custom_metrics", {})
         })
         
         # Save metrics to JSON after each iteration
@@ -684,8 +707,9 @@ def create_algo_config(env_config):
             # Set the train batch size to control number of episodes
             # 2 episodes x max_steps x num_students
             train_batch_size=2 * DEFAULT_ENV_CONFIG["max_steps"],
-            sgd_minibatch_size=32,
-            num_sgd_iter=10,
+            sgd_minibatch_size=10,  # TODO: changed from 32 to 10 for testing
+            # num_sgd_iter=10,
+            num_sgd_iter=1,
             model={
                 "fcnet_hiddens": [64, 64],
             },

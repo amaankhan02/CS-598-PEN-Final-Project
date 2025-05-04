@@ -211,10 +211,16 @@ class ClassroomEnv(MultiAgentEnv):
         print(f"Rewards calculated: {rewards}")
 
         # Terminate if all students reach the highest Bloom level
-        all_students_max_bloom = all(
+        # all_students_max_bloom = all(
+        #     level == StudentAgent.NUM_BLOOM_LEVELS
+        #     for level in new_bloom_levels.values()
+        # )
+        # TODO: chnaged to it ending when any student reaches max bloom level
+        all_students_max_bloom = any(
             level == StudentAgent.NUM_BLOOM_LEVELS
             for level in new_bloom_levels.values()
         )
+        
         terminate_episode = all_students_max_bloom
         truncate_episode = self.current_step >= self.max_steps
 
