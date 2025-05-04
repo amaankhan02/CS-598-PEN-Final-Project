@@ -46,6 +46,9 @@ class ClassroomEnv(MultiAgentEnv):
         self._agent_ids = {self.teacher.agent_id}
         self._agent_ids.update(self.students.keys())
         self.current_step = 0
+        
+        # Initialize infos dictionary for tracking metrics
+        self.infos = {agent_id: {} for agent_id in self._agent_ids}
 
         # Define observation spaces and action spaces for all agents
         self.observation_spaces = {}
@@ -100,6 +103,9 @@ class ClassroomEnv(MultiAgentEnv):
         self.teacher.reset()
         for student in self.students.values():
             student.reset()
+            
+        # Reset tracking infos
+        self.infos = {agent_id: {} for agent_id in self._agent_ids}
 
         observations = self._get_obs()
         infos = self._get_infos()  # Get base infos
@@ -221,9 +227,20 @@ class ClassroomEnv(MultiAgentEnv):
         observations = self._get_obs()
         infos = self._get_infos()
 
-        # add data to infos
-        self._add_zpd_alignment_info(infos, old_bloom_levels, teacher_action)    
+        # Calculate metrics for this step
+        metrics = self._calculate_step_metrics(
+            teacher_action, student_actions, old_bloom_levels, new_bloom_levels, level_advanced
+        )
+        
+        # Add metrics to infos
+        for agent_id in self._agent_ids:
+            infos[agent_id]["metrics"] = metrics
+        
+        # add LLM outputs and analysis to infos
         self._add_question_explanation_analysis_info(infos, questions, estimated_bloom_levels, explanation)
+        
+        # Add ZPD alignment info
+        self._add_zpd_alignment_info(infos, old_bloom_levels, teacher_action)
 
         return observations, rewards, terminated, truncated, infos
     
@@ -411,7 +428,58 @@ class ClassroomEnv(MultiAgentEnv):
         self._calculate_teacher_reward(rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
                                        student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty)
 
+        # Track reward component breakdown for metrics
+        teacher_id = self.teacher.agent_id
+        total_teacher_reward = rewards[teacher_id]
+        
+        # Avoid division by zero
+        if total_teacher_reward != 0:
+            # Calculate contribution percentages
+            advancement_contribution = (sum(level_advanced.values()) / self.num_students) / total_teacher_reward
+            zpd_contribution = (teacher_zpd_bonus + teacher_zpd_penalty) / total_teacher_reward
+            question_contribution = (student_bloom_bonus_total / self.num_students if self.num_students > 0 else 0) / total_teacher_reward
+            
+            # Store in infos for callback to access
+            if "reward_breakdown" not in self.infos[teacher_id]:
+                self.infos[teacher_id]["reward_breakdown"] = []
+                
+            self.infos[teacher_id]["reward_breakdown"].append({
+                "zpd_contribution": zpd_contribution,
+                "advancement_contribution": advancement_contribution,
+                "question_contribution": question_contribution
+            })
+
         return rewards
+
+    def _calculate_step_metrics(self, teacher_action, student_actions, old_bloom_levels, new_bloom_levels, level_advanced):
+        """Calculate per-step metrics for tracking"""
+        from agents import TeacherAgent, StudentAgent
+        
+        metrics = {}
+        
+        # 1. Bloom level variance
+        bloom_levels = list(new_bloom_levels.values())
+        if len(bloom_levels) >= 2:
+            metrics["bloom_level_variance"] = np.var(bloom_levels)
+            metrics["knowledge_gap"] = max(bloom_levels) - min(bloom_levels)
+        
+        # 2. ZPD matching rate for this step
+        zpd_matches = 0
+        for student_id, old_level in old_bloom_levels.items():
+            if ((teacher_action == TeacherAgent.ACTION_SIMPLE and old_level <= StudentAgent.BLOOM_UNDERSTAND) or
+                (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level >= StudentAgent.BLOOM_APPLY)):
+                zpd_matches += 1
+        
+        metrics["step_zpd_match_rate"] = zpd_matches / self.num_students if self.num_students > 0 else 0
+        
+        # 3. Action effectiveness for this step
+        advancements = sum(level_advanced.values())
+        metrics["step_advancement_rate"] = advancements / self.num_students if self.num_students > 0 else 0
+        
+        # 4. Average bloom level
+        metrics["avg_bloom_level"] = sum(new_bloom_levels.values()) / self.num_students if self.num_students > 0 else 0
+        
+        return metrics
 
 
 # for testing. main training script is in train.py
