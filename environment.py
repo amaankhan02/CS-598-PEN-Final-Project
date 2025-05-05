@@ -344,24 +344,28 @@ class ClassroomEnv(MultiAgentEnv):
         elif (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level <= StudentAgent.BLOOM_UNDERSTAND):
             teacher_zpd_penalty_delta -= 0.15
 
-        # --- Reward for Bloom Level Advancement ---
+        # --- Reward for Bloom Level Advancement Based on Magnitude of Change ---
         if level_advanced[student_id]:
-            advancement_reward = 1.5  # Base reward for advancing a level
-            # TODO: definitely change this - likely remove (if statement and +0.5 reward)
-            if in_zpd:
-                advancement_reward += 0.5  # Bonus if teacher action was in ZPD
-            rewards[student_id] += advancement_reward
+            level_delta = new_level - old_level
+            if level_delta > 0:
+                w_adv = 1.0
+                advancement_reward = w_adv * level_delta
+                rewards[student_id] += advancement_reward
 
-        # --- Reward for Asking High-Level Questions ---
+        # --- Reward for Asking High-Level Questions (Based on Quality of Question compared to Student's Current Level) ---
         if student_action == StudentAgent.ACTION_ASK:
             # Use the estimated Bloom level from LLM analysis
-            # Default to 1 if no analysis
-            question_level = estimated_question_levels.get(student_id, 1)
-            
+            # Default to student's current level if no analysis
+            question_level = estimated_question_levels.get(student_id, old_level)
+            improvement = max(0, question_level - old_level)
+            denom = max(1, StudentAgent.NUM_BLOOM_LEVELS - old_level)
+            question_quality = improvement / denom
+            w_q = 0.5
+
             # Reward proportional to the question level (scaled)
-            bloom_reward = (question_level / StudentAgent.NUM_BLOOM_LEVELS) * 0.5  # Max 0.5 reward
-            rewards[student_id] += bloom_reward
-            student_bloom_bonus_total_delta += bloom_reward  # Accumulate for potential teacher reward
+            q_reward = question_quality * w_q
+            rewards[student_id] += q_reward
+            student_bloom_bonus_total_delta += q_reward  # Accumulate for potential teacher reward
 
         # --- Goal Achievement Bonus (Reaching Max Bloom Level) ---
         if new_level == StudentAgent.NUM_BLOOM_LEVELS and old_level < StudentAgent.NUM_BLOOM_LEVELS:
