@@ -232,6 +232,8 @@ class ClassroomEnv(MultiAgentEnv):
         # get observations and infos
         observations = self._get_obs()
         infos = self._get_infos()
+        for agent_id in self._agent_ids:
+            infos[agent_id]["action"] = action_dict[agent_id]
 
         # Calculate metrics for this step
         metrics = self._calculate_step_metrics(
@@ -308,7 +310,6 @@ class ClassroomEnv(MultiAgentEnv):
             / self.num_students
         )
         infos[self.teacher.agent_id] = teacher_info
-
         # Student info
         for student_id, student in self.students.items():
             infos[student_id] = {

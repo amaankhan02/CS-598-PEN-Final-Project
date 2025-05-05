@@ -48,6 +48,7 @@ class ClassroomCallbacks(DefaultCallbacks):
         """Collect data from environment infos at each step."""
         # Get agent IDs - for a multi-agent env, assume standard agent IDs
         agent_ids = ["teacher_0", "student_0", "student_1"]
+        step_actions = {}
         
         # Process info dictionary for each agent
         for agent_id in agent_ids:
@@ -98,25 +99,26 @@ class ClassroomCallbacks(DefaultCallbacks):
                 episode.hist_data[agent_id]["reward_breakdown"].append(info["reward_breakdown"])
             
             # Store actions from last observation
-            try:
-                last_action = episode.last_action_for(agent_id)
-                if last_action is not None:
-                    # Track individual agent actions
-                    if agent_id not in episode.hist_data:
-                        episode.hist_data[agent_id] = {}
-                    if "actions" not in episode.hist_data[agent_id]:
-                        episode.hist_data[agent_id]["actions"] = []
-                        
-                    episode.hist_data[agent_id]["actions"].append(last_action)
+            if "action" in info:
+                step_actions[agent_id] = info["action"]
+                if agent_id not in episode.hist_data:
+                    episode.hist_data[agent_id] = {}
+                if "actions" not in episode.hist_data[agent_id]:
+                    episode.hist_data[agent_id]["actions"] = []
                     
-                    # Also track in global student/teacher action arrays
-                    if agent_id.startswith("student"):
-                        episode.hist_data["student_actions"].append((agent_id, last_action))
-                    elif agent_id.startswith("teacher"):
-                        episode.hist_data["teacher_actions"].append((agent_id, last_action))
-            except:
-                continue
-    
+                episode.hist_data[agent_id]["actions"].append(info["action"])
+
+        for agent_id, action in step_actions.items():
+            if agent_id.startswith("student"):
+                if "student_actions" not in episode.hist_data:
+                    episode.hist_data["student_actions"] = []
+                episode.hist_data["student_actions"].append((agent_id, action))
+            elif agent_id.startswith("teacher"):
+                if "teacher_actions" not in episode.hist_data:
+                    episode.hist_data["teacher_actions"] = []
+                episode.hist_data["teacher_actions"].append((agent_id, action))
+                
+                
     def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
         """Process metrics at the end of each episode"""
         print("--------------------------------")
