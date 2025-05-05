@@ -56,9 +56,10 @@ class ClassroomEnv(MultiAgentEnv):
         if self.num_students == 1:
             # Use Discrete if only 1 student (easier for simple networks)
             # Note: Bloom levels are 1-6, Discrete space is 0-5. So its shifted by -1 in _get_obs.
-            self.observation_spaces[self.teacher.agent_id] = gym.spaces.Discrete(
-                StudentAgent.NUM_BLOOM_LEVELS
-            )
+            self.observation_spaces[self.teacher.agent_id] = gym.spaces.Dict({
+    f"student_{i}_bloom": gym.spaces.Discrete(StudentAgent.NUM_BLOOM_LEVELS)
+    for i in range(self.num_students)
+})
         else:
             # Use Box for multiple students
             # Note: Box low=1, high=6 to represent actual Bloom levels

@@ -9,6 +9,7 @@ from ray.tune.logger import pretty_print
 from ray.train import CheckpointConfig
 import numpy as np
 import sys
+from ray.rllib.connectors.env_to_module import FlattenObservations
 
 from agents import StudentAgent, TeacherAgent
 from config import DEFAULT_ENV_CONFIG, DEFAULT_TRAINING_CONFIG
@@ -118,7 +119,8 @@ def create_algo_config(env_config):
         .env_runners(
             # num_rollout_workers=1,  # Number of parallel workers for collecting samples
             num_env_runners=1,
-            rollout_fragment_length="auto",  # Let RLlib determine fragment length
+            rollout_fragment_length="auto", 
+            env_to_module_connector=lambda env: FlattenObservations(), # Let RLlib determine fragment length
         )
         .training(
             gamma=0.99,
@@ -131,9 +133,28 @@ def create_algo_config(env_config):
             #     "fcnet_hiddens": [64, 64],
             # },
         )
-        # * moved policy model to rl_module
+    # * moved policy model to rl_module
         .rl_module(
-            model_config={"fcnet_hiddens": DEFAULT_TRAINING_CONFIG["fcnet_hiddens"]},
+            model_config={
+                "fcnet_hiddens": DEFAULT_TRAINING_CONFIG["fcnet_hiddens"],
+                "encoder_configs": {
+            "default": {
+                "type": "categorical",
+                "vocab_size": 6,        # Discrete(6) → vocab size 6
+                "embed_dim": 32,        # small embedding size
+            },
+            "teacher_policy": {
+                "type": "mlp",
+                "hidden_layers": [32, 32],
+            },
+            "student_policy": {
+                "type": "categorical",
+                "vocab_size": 6,
+                "embed_dim": 32,
+            },
+        
+                            
+            }},
         )
         .multi_agent(
             # Define the policies (agents). Here, both use the same PPO policy class
