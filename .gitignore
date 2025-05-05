@@ -18,6 +18,9 @@ ENV/
 .venv
 env.bak/
 venv.bak/
+# Explicitly exclude the classroom environment
+classroom_env/
+classroom_env/**/*
 
 # Conda environment files
 .conda/
