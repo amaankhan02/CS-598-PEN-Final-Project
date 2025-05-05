@@ -37,7 +37,8 @@ class ClassroomCallbacks(DefaultCallbacks):
             episode.hist_data[agent_id] = {
                 "actions": [],
                 "self_bloom_level": [],
-                "question_bloom_level": []
+                "question_bloom_level": [],
+                "zpd_alignment": []
             }
             
         # Initialize global arrays for all teacher/student actions
@@ -108,6 +109,13 @@ class ClassroomCallbacks(DefaultCallbacks):
                     
                 episode.hist_data[agent_id]["actions"].append(info["action"])
 
+                if "zpd_alignment" in info:
+                    if agent_id not in episode.hist_data:
+                        episode.hist_data[agent_id] = {}
+                    if "zpd_alignment" not in episode.hist_data[agent_id]:
+                        episode.hist_data[agent_id]["zpd_alignment"] = []
+                    episode.hist_data[agent_id]["zpd_alignment"].append(info["zpd_alignment"])
+
         for agent_id, action in step_actions.items():
             if agent_id.startswith("student"):
                 if "student_actions" not in episode.hist_data:
@@ -117,6 +125,7 @@ class ClassroomCallbacks(DefaultCallbacks):
                 if "teacher_actions" not in episode.hist_data:
                     episode.hist_data["teacher_actions"] = []
                 episode.hist_data["teacher_actions"].append((agent_id, action))
+
                 
                 
     def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
@@ -235,44 +244,13 @@ class ClassroomCallbacks(DefaultCallbacks):
         print(f"_track_zpd_metrics called with {len(student_ids)} students")
         
         # ZPD Match Rate - percentage of teacher actions that match students' ZPD
-        from agents import TeacherAgent, StudentAgent
-        
-        zpd_matches = 0
-        total_actions = 0
-        
-        # Get teacher actions
-        # teacher_actions = episode.agent_actions.get(teacher_id, [])
-        teacher_actions = self.__get_actions(episode, teacher_id)
-        
-        # Process each step to determine ZPD matches
-        for t in range(len(teacher_actions)):
-            teacher_action = teacher_actions[t]
-            zpd_matched_students = 0
-            
-            # Check each student's bloom level for ZPD match
-            for student_id in student_ids:
-                if (student_id in episode.hist_data and 
-                    "self_bloom_level" in episode.hist_data[student_id] and
-                    t < len(episode.hist_data[student_id]["self_bloom_level"])):
-                    
-                    bloom_level = episode.hist_data[student_id]["self_bloom_level"][t]
-                    
-                    # Apply ZPD matching rules
-                    if ((teacher_action == TeacherAgent.ACTION_SIMPLE and 
-                         bloom_level <= StudentAgent.BLOOM_UNDERSTAND) or
-                        (teacher_action == TeacherAgent.ACTION_COMPLEX and 
-                         bloom_level >= StudentAgent.BLOOM_APPLY)):
-                        zpd_matched_students += 1
-            
-            # Calculate ZPD match rate for this step
-            if student_ids:
-                step_match_rate = zpd_matched_students / len(student_ids)
-                zpd_matches += step_match_rate
-                total_actions += 1
-        
+        zpd_matches = sum(1 for agent_id in student_ids if episode.hist_data[agent_id]["zpd_alignment"] == 1)
+        total_actions = sum(len(episode.hist_data[agent_id]["actions"]) for agent_id in student_ids)
+
         if total_actions > 0:
             episode.custom_metrics["zpd_match_rate"] = zpd_matches / total_actions
-        
+            print(f"zpd_match_rate: {episode.custom_metrics["zpd_match_rate"]}")
+
     def _track_teacher_strategy(self, episode, student_ids, teacher_id):
         """Track metrics related to teacher strategy"""
         print(f"_track_teacher_strategy called with {len(student_ids)} students")
