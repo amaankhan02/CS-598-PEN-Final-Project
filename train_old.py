@@ -13,38 +13,38 @@ from agents import StudentAgent, TeacherAgent
 from config import DEFAULT_ENV_CONFIG, DEFAULT_TRAINING_CONFIG
 from environment import ClassroomEnv
 
-class ClassroomCallbacks(DefaultCallbacks):
+# class ClassroomCallbacks(DefaultCallbacks):
     
-    def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
-        # gather statistics at the end of each episode
+#     def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
+#         # gather statistics at the end of each episode
         
-        # # get final avg bloom levels for each student
-        # final_bloom_levels = []
-        # student_ids = [agent_id for agent_id in episode.agent_rewards.keys() if agent_id.startswith("student")]
+#         # # get final avg bloom levels for each student
+#         # final_bloom_levels = []
+#         # student_ids = [agent_id for agent_id in episode.agent_rewards.keys() if agent_id.startswith("student")]
 
-        # for agent_id in student_ids:
-        #     last_info = episode.last_info_for(agent_id)
-        #     if last_info and "self_bloom_level" in last_info:
-        #         final_bloom_levels.append(last_info["self_bloom_level"])
-        #     else:
-        #         # TODO: handle this case 
-        #         pass
+#         # for agent_id in student_ids:
+#         #     last_info = episode.last_info_for(agent_id)
+#         #     if last_info and "self_bloom_level" in last_info:
+#         #         final_bloom_levels.append(last_info["self_bloom_level"])
+#         #     else:
+#         #         # TODO: handle this case 
+#         #         pass
             
-        # if final_bloom_levels:
-        #     avg_final_bloom = np.mean(final_bloom_levels)
-        #     episode.custom_metrics["avg_final_bloom"] = avg_final_bloom
+#         # if final_bloom_levels:
+#         #     avg_final_bloom = np.mean(final_bloom_levels)
+#         #     episode.custom_metrics["avg_final_bloom"] = avg_final_bloom
             
-        # # get avg question bloom level for the class and per student
-        # all_class_question_levels = []
-        # hist_data = episode.hist_data
-        # for agent_id in student_ids:
-        #     if agent_id in hist_data and 'question_bloom_level' in hist_data[agent_id]:
-        #         all_class_question_levels.extend(hist_data[agent_id]['question_bloom_level'])
-        #         student_avg_question_level = np.mean(hist_data[agent_id]['question_bloom_level'])
-        #         episode.custom_metrics[f"{agent_id}_avg_question_bloom_level"] = student_avg_question_level
-        # if all_class_question_levels:
-        #     avg_question_level = np.mean(all_class_question_levels)
-        #     episode.custom_metrics["class_avg_question_bloom_level"] = avg_question_level
+#         # # get avg question bloom level for the class and per student
+#         # all_class_question_levels = []
+#         # hist_data = episode.hist_data
+#         # for agent_id in student_ids:
+#         #     if agent_id in hist_data and 'question_bloom_level' in hist_data[agent_id]:
+#         #         all_class_question_levels.extend(hist_data[agent_id]['question_bloom_level'])
+#         #         student_avg_question_level = np.mean(hist_data[agent_id]['question_bloom_level'])
+#         #         episode.custom_metrics[f"{agent_id}_avg_question_bloom_level"] = student_avg_question_level
+#         # if all_class_question_levels:
+#         #     avg_question_level = np.mean(all_class_question_levels)
+#         #     episode.custom_metrics["class_avg_question_bloom_level"] = avg_question_level
         
         
         
