@@ -8,16 +8,16 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL_NAME = "gemini-2.0-flash-lite"  # has the highest RPM
 
 DEFAULT_ENV_CONFIG = {
-    "max_steps": 5,
+    "max_steps": 20,
     "topic": "Astronomy",
-    "num_students": 2,
+    "num_students": 3,
     "student_types": ["beginner", "intermediate", "advanced"],
 }
 
 DEFAULT_TRAINING_CONFIG = {
-    "num_iterations": 1,
+    "num_iterations": 10,
     "lr": 5e-5,
-    "train_batch_size": 8, # 512 typically
+    "train_batch_size": 128, # 512 typically
     # episodes_per_iteration is not a direct parameter in RLlib 2.37.0
     # We'll set the appropriate parameters in the PPOConfig.rollouts() section instead
 }

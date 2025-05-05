@@ -29,7 +29,7 @@ class ClassroomCallbacks(DefaultCallbacks):
         episode.hist_data = {}
         
         # Initialize standard agent IDs
-        student_ids = [f"student_{i}" for i in range(3)]  # We know we have 3 students from config
+        student_ids = [f"student_{i}" for i in range(5)]  # We know we have 3 students from config
         agent_ids = ["teacher_0"] + student_ids
         
         # Initialize data for each agent
@@ -48,7 +48,7 @@ class ClassroomCallbacks(DefaultCallbacks):
     def on_episode_step(self, *, worker, base_env, policies, episode, env_index, **kwargs):
         """Collect data from environment infos at each step."""
         # Get agent IDs - for a multi-agent env, assume standard agent IDs
-        agent_ids = ["teacher_0", "student_0", "student_1", "student_2"]
+        agent_ids = ["teacher_0", "student_0", "student_1", "student_2", "student_3", "student_4", "student_5"]
         step_actions = {}
         
         # Process info dictionary for each agent
