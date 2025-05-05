@@ -6,16 +6,16 @@ from ray import air, tune
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.logger import pretty_print
-from ray.rllib.callbacks import DefaultCallbacks
+# from ray.rllib.callbacks import DefaultCallbacks
 import numpy as np
 
 from agents import StudentAgent, TeacherAgent
 from config import DEFAULT_ENV_CONFIG, DEFAULT_TRAINING_CONFIG
 from environment import ClassroomEnv
 
-class ClassroomCallbacks(DefaultCallbacks):
+# class ClassroomCallbacks(DefaultCallbacks):
     
-    def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
+#     def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
         # gather statistics at the end of each episode
         
         # # get final avg bloom levels for each student
@@ -114,7 +114,7 @@ def create_algo_config(env_config):
             env_config=env_config,
             disable_env_checking=True,  # Disable for custom envs if needed, but check if issues arise
         )
-        .callbacks(ClassroomCallbacks)
+        # .callbacks(ClassroomCallbacks)
         .framework("torch")  # Or "tf2"
         .rollouts(
             num_rollout_workers=1,  # Number of parallel workers for collecting samples
@@ -123,13 +123,14 @@ def create_algo_config(env_config):
         # TODO: when we make our environment, obs and action space more complex, we need to make the policy network model more complex as well
         .training(
             gamma=0.99,
-            lr=5e-5,
+            lr=DEFAULT_TRAINING_CONFIG["lr"],
             lambda_=0.95,
-            train_batch_size=512,
+            train_batch_size=DEFAULT_TRAINING_CONFIG["train_batch_size"],
             sgd_minibatch_size=64,
-            num_sgd_iter=10,
+            num_sgd_iter=DEFAULT_TRAINING_CONFIG["sgd_num_iter"],
             model={
-                "fcnet_hiddens": [64, 64],
+                # "fcnet_hiddens": [64, 64],
+                "fcnet_hiddens": [32, 32],
             },
         )
         .multi_agent(
