@@ -29,7 +29,7 @@ class ClassroomCallbacks(DefaultCallbacks):
         episode.hist_data = {}
         
         # Initialize standard agent IDs
-        student_ids = [f"student_{i}" for i in range(2)]  # We know we have 2 students from config
+        student_ids = [f"student_{i}" for i in range(3)]  # We know we have 3 students from config
         agent_ids = ["teacher_0"] + student_ids
         
         # Initialize data for each agent
@@ -48,7 +48,7 @@ class ClassroomCallbacks(DefaultCallbacks):
     def on_episode_step(self, *, worker, base_env, policies, episode, env_index, **kwargs):
         """Collect data from environment infos at each step."""
         # Get agent IDs - for a multi-agent env, assume standard agent IDs
-        agent_ids = ["teacher_0", "student_0", "student_1"]
+        agent_ids = ["teacher_0", "student_0", "student_1", "student_2"]
         step_actions = {}
         
         # Process info dictionary for each agent
@@ -243,13 +243,17 @@ class ClassroomCallbacks(DefaultCallbacks):
         """Track metrics related to Zone of Proximal Development"""
         print(f"_track_zpd_metrics called with {len(student_ids)} students")
         
-        # ZPD Match Rate - percentage of teacher actions that match students' ZPD
-        zpd_matches = sum(1 for agent_id in student_ids if episode.hist_data[agent_id]["zpd_alignment"] == 1)
-        total_actions = sum(len(episode.hist_data[agent_id]["actions"]) for agent_id in student_ids)
+        # Gather all the 0/1 alignment flags:
+        all_alignments = []
+        for sid in student_ids:
+            aligns = episode.hist_data[sid].get("zpd_alignment", [])
+            all_alignments.extend(aligns)
 
-        if total_actions > 0:
-            episode.custom_metrics["zpd_match_rate"] = zpd_matches / total_actions
-            print(f"zpd_match_rate: {episode.custom_metrics["zpd_match_rate"]}")
+        total_events = len(all_alignments)
+        if total_events > 0:
+            matches = sum(1 for a in all_alignments if a == 1)               # count of 1’s
+            episode.custom_metrics["zpd_match_rate"] = matches / total_events
+            print(f"zpd_match_rate: {episode.custom_metrics['zpd_match_rate']:.3f}")
 
     def _track_teacher_strategy(self, episode, student_ids, teacher_id):
         """Track metrics related to teacher strategy"""
