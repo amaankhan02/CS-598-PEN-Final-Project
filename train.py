@@ -96,11 +96,11 @@ def train(num_iterations, algo):
         # You can access specific metrics like this:
         print_metrics(result)
 
-    checkpoint_dir = algo.save()
+    # checkpoint_dir = algo.save()
     algo.stop()
     ray.shutdown()
 
-    print(f"Checkpoint saved in directory: {checkpoint_dir}. Training finished.")
+    # print(f"Checkpoint saved in directory: {checkpoint_dir}. Training finished.")
 
 
 def create_algo_config(env_config):
