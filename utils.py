@@ -28,7 +28,7 @@ class LLMClient:
 
         self.model_name = model_name
         self.model = None
-
+        self.num_calls = 0
         # Rate limiting properties
         self.requests_per_minute = config.DEFAULT_LLM_CONFIG.get(
             "requests_per_minute", 25
@@ -81,6 +81,10 @@ class LLMClient:
             return "[Error: LLM Model not initialized]"
         
         current_gen_config = specific_gen_config if specific_gen_config else self.generation_config
+        self.num_calls += 1
+
+        if self.num_calls % 10:
+          print("Gemini Num Calls = " + str(self.num_calls))
 
         retries = 0
         while retries < max_retries:
@@ -109,12 +113,14 @@ class LLMClient:
             except Exception as e:
                 retries += 1
                 error_message = str(e).lower()
-
+                print(error_message)
+                print(e)
+                print(f"GEMINI ERROR AT {self.num_calls} calls")
                 # Check if this is a rate limit error
                 if (
                     "rate limit" in error_message
-                    or "quota" in error_message
-                    or "429" in error_message
+                    # or "quota" in error_message
+                    # or "429" in error_message
                 ):
                     retry_delay = delay * 2  # Wait longer for rate limit errors
                     print(

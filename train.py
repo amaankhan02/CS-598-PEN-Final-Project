@@ -200,7 +200,7 @@ class ClassroomCallbacks(DefaultCallbacks):
         if self.time_to_max_bloom:
             episode.custom_metrics["avg_time_to_max_bloom"] = np.mean(list(self.time_to_max_bloom.values()))
             episode.custom_metrics["students_reached_max_bloom"] = len(self.reached_max_bloom)
-            print(f"number of students reaching max bloom levels: {episode.custom_metrics["students_reached_max_bloom"]}")
+            print(f"number of students reaching max bloom levels: {episode.custom_metrics['students_reached_max_bloom']}")
         else:
             print(f" No studetns reached max bloom")
         
@@ -209,7 +209,7 @@ class ClassroomCallbacks(DefaultCallbacks):
             # Calculate average bloom level
             avg_bloom = np.mean(final_bloom_levels)
             episode.custom_metrics["final_avg_bloom_level"] = avg_bloom
-            print(f" final avg bloom level: {episode.custom_metrics["final_avg_bloom_level"]}")
+            print(f" final avg bloom level: {episode.custom_metrics['final_avg_bloom_level']}")
             
             # Calculate distribution
             for level in range(1, max_bloom + 1):
@@ -308,11 +308,11 @@ class ClassroomCallbacks(DefaultCallbacks):
         if total_low > 0:
             episode.custom_metrics["low_level_simple_rate"] = low_level_actions["simple"] / total_low
             episode.custom_metrics["low_level_complex_rate"] = low_level_actions["complex"] / total_low
-            print(f"low_level_simple_rate: {episode.custom_metrics["low_level_simple_rate"]}")
+            print(f"low_level_simple_rate: {episode.custom_metrics['low_level_simple_rate']}")
         if total_high > 0:
             episode.custom_metrics["high_level_simple_rate"] = high_level_actions["simple"] / total_high
             episode.custom_metrics["high_level_complex_rate"] = high_level_actions["complex"] / total_high
-            print(f"high_level_simple_rate: {episode.custom_metrics["high_level_simple_rate"]}")
+            print(f"high_level_simple_rate: {episode.custom_metrics['high_level_simple_rate']}")
         
         # 3. Action Effectiveness
         simple_advancements = 0
@@ -337,10 +337,10 @@ class ClassroomCallbacks(DefaultCallbacks):
         # Calculate effectiveness rates
         if simple_actions > 0:
             episode.custom_metrics["simple_action_effectiveness"] = simple_advancements / simple_actions
-            print(f"simple_action_effectiveness: {episode.custom_metrics["simple_action_effectiveness"]}")
+            print(f"simple_action_effectiveness: {episode.custom_metrics['simple_action_effectiveness']}")
         if complex_actions > 0:
             episode.custom_metrics["complex_action_effectiveness"] = complex_advancements / complex_actions
-            print(f"complex_action_effectiveness: {episode.custom_metrics["complex_action_effectiveness"]}")
+            print(f"complex_action_effectiveness: {episode.custom_metrics['complex_action_effectiveness']}")
 
     def __get_actions(self, episode, agent_id):
         """Get actions for a specific agent from episode hist_data."""
@@ -387,7 +387,7 @@ class ClassroomCallbacks(DefaultCallbacks):
                 if question_levels:
                     avg_question_level = np.mean(question_levels)
                     episode.custom_metrics[f"{student_id}_avg_question_level"] = avg_question_level
-                    print(f"{student_id}_avg_question_level: {episode.custom_metrics[f"{student_id}_avg_question_level"]}")
+                    print(f"{student_id}_avg_question_level: {episode.custom_metrics[f'{student_id}_avg_question_level']}")
                     # Track question quality progression
                     if len(question_levels) >= 2:
                         # Calculate the change between consecutive questions
@@ -397,17 +397,17 @@ class ClassroomCallbacks(DefaultCallbacks):
                         # Average change in question quality
                         avg_question_change = np.mean(question_changes)
                         episode.custom_metrics[f"{student_id}_avg_question_change"] = avg_question_change
-                        print(f"{student_id}_avg_question_change: {episode.custom_metrics[f"{student_id}_avg_question_change"]}")
+                        print(f"{student_id}_avg_question_change: {episode.custom_metrics[f'{student_id}_avg_question_change']}")
 
                         # Last-vs-first question level difference (overall trajectory)
                         question_trajectory = question_levels[-1] - question_levels[0]
                         episode.custom_metrics[f"{student_id}_question_trajectory"] = question_trajectory
-                        print(f"{student_id}_question_trajectory: {episode.custom_metrics[f"{student_id}_question_trajectory"]}")
+                        print(f"{student_id}_question_trajectory: {episode.custom_metrics[f'{student_id}_question_trajectory']}")
 
         # Track class-wide question quality
         if all_question_levels:
             episode.custom_metrics["class_avg_question_level"] = np.mean(all_question_levels)
-            print(f"class_avg_question_level: {episode.custom_metrics["class_avg_question_level"]}")
+            print(f"class_avg_question_level: {episode.custom_metrics['class_avg_question_level']}")
             
             # Aggregate question levels by step across all students
             # First, determine the maximum step with questions
@@ -444,7 +444,7 @@ class ClassroomCallbacks(DefaultCallbacks):
                 non_zero_averages = [avg for avg in step_averages if avg > 0]
                 if len(non_zero_averages) >= 2:
                     episode.custom_metrics["class_question_trajectory"] = non_zero_averages[-1] - non_zero_averages[0]
-                    print(f"class_question_trajectory: {episode.custom_metrics["class_question_trajectory"]}")
+                    print(f"class_question_trajectory: {episode.custom_metrics['class_question_trajectory']}")
         
         # 2. Student Action Distribution
         print(f"tracking student action distribution")
@@ -461,9 +461,9 @@ class ClassroomCallbacks(DefaultCallbacks):
                 print(f"ask_count: {ask_count}")
                 print(f"total: {total}")
                 episode.custom_metrics[f"{student_id}_study_rate"] = study_count / total
-                print(f"{student_id}_study_rate: {episode.custom_metrics[f"{student_id}_study_rate"]}")
+                print(f"{student_id}_study_rate: {episode.custom_metrics[f'{student_id}_study_rate']}")
                 episode.custom_metrics[f"{student_id}_ask_rate"] = ask_count / total
-                print(f"{student_id}_ask_rate: {episode.custom_metrics[f"{student_id}_ask_rate"]}")
+                print(f"{student_id}_ask_rate: {episode.custom_metrics[f'{student_id}_ask_rate']}")
         
         # 3. Question-to-Advancement Correlation
         print(f"tracking question-to-advancement correlation")
@@ -551,11 +551,11 @@ class ClassroomCallbacks(DefaultCallbacks):
         # Calculate advancement rates by action type
         if total_questions > 0:
             episode.custom_metrics["advancement_rate_after_question"] = advancement_after_question / total_questions
-            print(f"advancement_rate_after_question: {episode.custom_metrics["advancement_rate_after_question"]}")
+            print(f"advancement_rate_after_question: {episode.custom_metrics['advancement_rate_after_question']}")
             
         if total_study > 0:
             episode.custom_metrics["advancement_rate_after_study"] = advancement_after_study / total_study
-            print(f"advancement_rate_after_study: {episode.custom_metrics["advancement_rate_after_study"]}")
+            print(f"advancement_rate_after_study: {episode.custom_metrics['advancement_rate_after_study']}")
         # Calculate and record level-specific advancement rates
         for level, advancements in advancements_by_level.items():
             for action_type in ["ask", "study"]:
@@ -563,7 +563,7 @@ class ClassroomCallbacks(DefaultCallbacks):
                 if total_actions > 0:
                     advancement_rate = advancements[action_type] / total_actions
                     episode.custom_metrics[f"bloom_{level}_advancement_rate_after_{action_type}"] = advancement_rate
-                    print(f"bloom_{level}_advancement_rate_after_{action_type}: {episode.custom_metrics[f"bloom_{level}_advancement_rate_after_{action_type}"]}")
+                    print(f"bloom_{level}_advancement_rate_after_{action_type}: {episode.custom_metrics[f'bloom_{level}_advancement_rate_after_{action_type}']}")
         # Calculate and record level-and-type-specific advancement rates
         for (level, student_type), advancements in advancements_by_level_type.items():
             for action_type in ["ask", "study"]:
@@ -571,7 +571,7 @@ class ClassroomCallbacks(DefaultCallbacks):
                 if total_actions > 0:
                     advancement_rate = advancements[action_type] / total_actions
                     episode.custom_metrics[f"{student_type}_bloom_{level}_advancement_rate_after_{action_type}"] = advancement_rate
-                    print(f"{student_type}_bloom_{level}_advancement_rate_after_{action_type}: {episode.custom_metrics[f"{student_type}_bloom_{level}_advancement_rate_after_{action_type}"]}")
+                    print(f"{student_type}_bloom_{level}_advancement_rate_after_{action_type}: {episode.custom_metrics[f'{student_type}_bloom_{level}_advancement_rate_after_{action_type}']}")
     
     def _track_equity_metrics(self, episode, student_ids):
         """Track metrics related to educational equity"""
@@ -612,9 +612,9 @@ class ClassroomCallbacks(DefaultCallbacks):
 
             if variance_history:
                 episode.custom_metrics["avg_bloom_variance"] = np.mean(variance_history)
-                print(f"avg_bloom_variance: {episode.custom_metrics["avg_bloom_variance"]}")
+                print(f"avg_bloom_variance: {episode.custom_metrics['avg_bloom_variance']}")
                 episode.custom_metrics["final_bloom_variance"] = variance_history[-1]
-                print(f"final_bloom_variance: {episode.custom_metrics["final_bloom_variance"]}")
+                print(f"final_bloom_variance: {episode.custom_metrics['final_bloom_variance']}")
         
         # 2. Knowledge Gap - difference between highest and lowest bloom levels
         gap_history = []
@@ -635,9 +635,9 @@ class ClassroomCallbacks(DefaultCallbacks):
                 print(f"gap_history: {gap_history}")
         if gap_history:
             episode.custom_metrics["avg_knowledge_gap"] = np.mean(gap_history)
-            print(f"avg_knowledge_gap: {episode.custom_metrics["avg_knowledge_gap"]}")
+            print(f"avg_knowledge_gap: {episode.custom_metrics['avg_knowledge_gap']}")
             episode.custom_metrics["final_knowledge_gap"] = gap_history[-1]
-            print(f"final_knowledge_gap: {episode.custom_metrics["final_knowledge_gap"]}")
+            print(f"final_knowledge_gap: {episode.custom_metrics['final_knowledge_gap']}")
         
         # 3. Learning Coefficient Impact
         # Track performance by student type
@@ -660,7 +660,7 @@ class ClassroomCallbacks(DefaultCallbacks):
         for student_type, bloom_levels in student_types.items():
             if bloom_levels:
                 episode.custom_metrics[f"{student_type}_avg_bloom"] = np.mean(bloom_levels)
-                print(f"{student_type}_avg_bloom: {episode.custom_metrics[f"{student_type}_avg_bloom"]}")
+                print(f"{student_type}_avg_bloom: {episode.custom_metrics[f'{student_type}_avg_bloom']}")
     
     def _track_reward_components(self, episode, student_ids, teacher_id):
         """Track metrics related to reward components"""
@@ -898,7 +898,7 @@ def create_algo_config(env_config):
             ),
             policies_to_train=["teacher_policy", "student_policy"],
         )
-        .resources(num_gpus=0)
+        .resources(num_gpus=1)
         # For debugging or simpler setups:
         .debugging(log_level="INFO")  # Set log level (INFO, DEBUG, WARN, ERROR)
     )
@@ -925,8 +925,9 @@ def main(num_iterations=DEFAULT_TRAINING_CONFIG["num_iterations"]):
 
 
 if __name__ == "__main__":
+    import sys
     try:
-        main(1)  # Run just 1 iteration for testing
+        main(int(sys.argv[1]))  # Run just 1 iteration for testing
     except Exception as e:
         print(f"\nAn unexpected error occurred during training: {e}")
         ray.shutdown()  # shutdown in case of an error
