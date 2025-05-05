@@ -8,7 +8,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL_NAME = "gemini-2.0-flash-lite"  # has the highest RPM
 
 DEFAULT_ENV_CONFIG = {
-    "max_steps": 20,
+    "max_steps": 5,
     "topic": "Astronomy",
     "num_students": 3,
     "student_types": ["beginner", "intermediate", "advanced"],

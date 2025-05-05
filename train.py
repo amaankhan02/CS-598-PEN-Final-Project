@@ -805,7 +805,8 @@ def train(num_iterations, algo):
         print_metrics(result)
         
         # Store iteration metrics
-        metrics_to_save = result["env_runners"].get("custom_metrics", {})
+        #metrics_to_save = result["env_runners"].get("custom_metrics", {})
+        metrics_to_save = result.get("custom_metrics", {}) #added this line
         for k, v in metrics_to_save.items():
             if isinstance(v, np.int64):
                 metrics_to_save[k] = int(v)
@@ -898,7 +899,7 @@ def create_algo_config(env_config):
             ),
             policies_to_train=["teacher_policy", "student_policy"],
         )
-        .resources(num_gpus=1)
+        .resources(num_gpus_per_worker=0)
         # For debugging or simpler setups:
         .debugging(log_level="INFO")  # Set log level (INFO, DEBUG, WARN, ERROR)
     )
