@@ -45,6 +45,11 @@ def student_bloom_level_to_str(bloom_level):
         return "Create"
     else:
         return "Unknown - " + str(bloom_level)
+    
+def log_dictionary(dictionary, dict_name: str):
+    log_data(f"{dict_name}:")
+    for key, value in dictionary.items():
+        log_data(f"\t{key}: {value}")
 
 class ClassroomEnv(MultiAgentEnv):
     """A simple classroom environment for teaching and learning"""
@@ -161,8 +166,8 @@ class ClassroomEnv(MultiAgentEnv):
         self.current_step += 1
         
         if self.current_step == 1: # NEW EPISODE HAS STARTED
-            log_data("\n\n" + "*"*10 + f"Episode {self._episode_count} has started" + "*"*10)
             self._episode_count += 1
+            log_data("\n\n" + "*"*10 + f"Episode {self._episode_count} has started" + "*"*10)
         log_data(f"\n-----Step {self.current_step} has started-----")
 
         if self.teacher.agent_id not in action_dict:
@@ -193,7 +198,7 @@ class ClassroomEnv(MultiAgentEnv):
                 student_actions[student_id] = student_action
                 
                 # print(f"{student_id} Action: {student_action} (Current Bloom: {student.current_bloom_level})")
-                log_data(f"{student_id} Action: {student_action_to_str(student_action)} (Current Bloom: {student_bloom_level_to_str(student.current_bloom_level)})")
+                log_data(f"{student_id} Action: {student_action_to_str(student_action)} (Current Bloom: {student.current_bloom_level} - {student_bloom_level_to_str(student.current_bloom_level)})")
 
                 # Update student state (Bloom level)
                 level_advanced[student_id] = student.update_state(teacher_action, student_action)
@@ -218,15 +223,13 @@ class ClassroomEnv(MultiAgentEnv):
 
         # Teacher generates explanation if applicable (after student actions)
         explanation = None
-        if (
-            teacher_action == TeacherAgent.ACTION_SIMPLE
-            or teacher_action == TeacherAgent.ACTION_COMPLEX
-        ):
+        if teacher_action == TeacherAgent.ACTION_SIMPLE or teacher_action == TeacherAgent.ACTION_COMPLEX:
             # Generate explanation based on average Bloom level for simplicity
             avg_bloom_level = round(
                 sum(s.current_bloom_level for s in self.students.values())
                 / self.num_students
             )
+            log_data(f"Current Class Avg Bloom Level: {avg_bloom_level}")
             # TODO: pass the student's zpd alignment to the teacher and have the teacher's response based on that as well
             explanation = self.teacher.generate_explanation(avg_bloom_level, self.topic)
             print(
@@ -263,6 +266,11 @@ class ClassroomEnv(MultiAgentEnv):
             for level in new_bloom_levels.values()
         )
         
+        # calculate which students are at the max bloom level and record the step number with it
+        for student_id, student in self.students.items():
+            if student.current_bloom_level == StudentAgent.NUM_BLOOM_LEVELS:
+                log_data(f"{student_id} - Max Bloom Level Reached at Step: {self.current_step}")
+        
         terminate_episode = any_students_max_bloom
         truncate_episode = self.current_step >= self.max_steps
         # truncate_episode = False
@@ -271,6 +279,9 @@ class ClassroomEnv(MultiAgentEnv):
         truncated = {agent_id: truncate_episode for agent_id in self._agent_ids}
         terminated["__all__"] = terminate_episode
         truncated["__all__"] = truncate_episode
+        
+        log_data(f"Terminated: {terminated}")
+        log_data(f"Truncated: {truncated}")
 
         # get observations and infos
         observations = self._get_obs()
@@ -299,6 +310,7 @@ class ClassroomEnv(MultiAgentEnv):
             if student_id not in infos: 
                 infos[student_id] = {}      # Ensure dict exists
             infos[student_id]["zpd_alignment"] = in_zpd_step
+            log_data(f"{student_id} - ZPD Alignment: {in_zpd_step}")
             
     def _add_question_explanation_analysis_info(self, infos, questions, estimated_bloom_levels, explanation):
         if explanation:
@@ -308,6 +320,7 @@ class ClassroomEnv(MultiAgentEnv):
             # Also add the estimated bloom level from analysis
             if student_id in estimated_bloom_levels:
                 infos[student_id]["question_bloom_level"] = estimated_bloom_levels[student_id]
+                log_data(f"{student_id} - Question Bloom Level: {estimated_bloom_levels[student_id]}")
 
     def _get_obs(self):
         """Gets the current observations for each agent based on Bloom levels."""

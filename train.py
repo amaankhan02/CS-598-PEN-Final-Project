@@ -14,8 +14,7 @@ import sys
 
 from agents import StudentAgent, TeacherAgent
 from config import DEFAULT_ENV_CONFIG, DEFAULT_TRAINING_CONFIG, METRICS_DIR, LOG_FILE_NAME, LOG_DIR
-from environment import ClassroomEnv
-
+from environment import ClassroomEnv, log_data
 
 class ClassroomCallbacks(DefaultCallbacks):
     
@@ -119,34 +118,36 @@ def train(num_iterations, algo):
     print(f"\nStarting training for {num_iterations} iterations...")
 
     for i in range(num_iterations):
+        
+        log_data(f"\n------- Starting Iteration {i+1}/{num_iterations} -------")
         result = algo.train()  # one iteration of training
 
         # Print results using RLlib's pretty_print function
-        print(f"\n--- Iteration {i+1}/{num_iterations} ---")
+        # print(f"\n--- Iteration {i+1}/{num_iterations} ---")
         print(pretty_print(result))
 
         # You can access specific metrics like this:
         print_metrics(result)
         
-        # save metrics to file
-        metrics_file_path = os.path.join(METRICS_DIR, f"metrics_iter_{i+1}.json")
-        env_runners = result.get("env_runners", {})
-        if not env_runners:
-            print("-"*40 + "ERROR C" + "-"*40)
-            print(f"No env_runners found in result")
-            print(f"result: {result}")
-            print("-"*40 + "ERROR C" + "-"*40)
-        else:
-            if "custom_metrics" in env_runners:
-                with open(metrics_file_path, "w") as f:
-                    json.dump(env_runners.get("custom_metrics", {}), f)
-            else:
-                print("-"*40 + "ERROR D" + "-"*40)
-                print(f"No custom_metrics found in env_runners")
-                print(f"env_runners: {env_runners}")
-                print("-"*40 + "ERROR D" + "-"*40)
+        # save metrics to file  --- avoiding metrics calculation like this for now
+        # metrics_file_path = os.path.join(METRICS_DIR, f"metrics_iter_{i+1}.json")
+        # env_runners = result.get("env_runners", {})
+        # if not env_runners:
+        #     print("-"*40 + "ERROR C" + "-"*40)
+        #     print(f"No env_runners found in result")
+        #     print(f"result: {result}")
+        #     print("-"*40 + "ERROR C" + "-"*40)
+        # else:
+        #     if "custom_metrics" in env_runners:
+        #         with open(metrics_file_path, "w") as f:
+        #             json.dump(env_runners.get("custom_metrics", {}), f)
+        #     else:
+        #         print("-"*40 + "ERROR D" + "-"*40)
+        #         print(f"No custom_metrics found in env_runners")
+        #         print(f"env_runners: {env_runners}")
+        #         print("-"*40 + "ERROR D" + "-"*40)
         
-        print(f"Metrics for iteration {i+1} saved to {metrics_file_path}")
+        # print(f"Metrics for iteration {i+1} saved to {metrics_file_path}")
 
     # checkpoint_dir = algo.save()
     algo.stop()
