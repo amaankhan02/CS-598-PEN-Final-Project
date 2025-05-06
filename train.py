@@ -218,12 +218,12 @@ if __name__ == "__main__":
     # create metrics directory if it doesn't exist
     os.makedirs(METRICS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
-    if len(sys.argv) != 2:
-        print("Usage: python train.py <num_iterations>")
-        sys.exit(1)
     
-    num_iterations = int(sys.argv[1])
-    
+    if len(sys.argv) < 2:
+        num_iterations = DEFAULT_TRAINING_CONFIG["num_iterations"]
+    else:
+        num_iterations = int(sys.argv[1])
+    print(f"Training for {num_iterations} iterations")
     try:
         main(num_iterations)
     except Exception as e:
