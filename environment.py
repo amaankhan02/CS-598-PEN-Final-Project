@@ -420,24 +420,76 @@ class ClassroomEnv(MultiAgentEnv):
             
         return teacher_zpd_bonus_delta, teacher_zpd_penalty_delta, student_bloom_bonus_total_delta
     
+    # Old teacher reward calculations - 
+    # def _calculate_teacher_reward(self, rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
+    #                               student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty):
+    #     # TODO: all the numbers here being added/subtracted are arbitrary - need to find good values or tune them or wtv
+    #     # Base reward for average advancement (simple version)
+    #     avg_advancement = sum(level_advanced.values()) / self.num_students  # avg number of students that improved
+    #     # TODO: level_advanced consists of boolean values (improve or not) - we can change this to be how much they improved - how many bloom levels they jumped
+    #     rewards[self.teacher.agent_id] += avg_advancement * 1.0
+
+    #     # Apply accumulated ZPD bonuses/penalties
+    #     rewards[self.teacher.agent_id] += teacher_zpd_bonus
+    #     rewards[self.teacher.agent_id] += teacher_zpd_penalty
+
+    #     # Reward teacher for eliciting high-level questions (average Bloom bonus given to students)
+    #     if self.num_students > 0:
+    #         rewards[self.teacher.agent_id] += (
+    #             student_bloom_bonus_total / self.num_students
+    #         )
+
+    #     # Goal achievement bonus for teacher (all students reach max level)
+    #     if all(level == StudentAgent.NUM_BLOOM_LEVELS for level in new_bloom_levels.values()) \
+    #         and not all(level == StudentAgent.NUM_BLOOM_LEVELS for level in old_bloom_levels.values()):
+    #         rewards[self.teacher.agent_id] += 5.0
+    
     def _calculate_teacher_reward(self, rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
-                                  student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty):
+                                  student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty, teacher_action, estimated_question_levels):
+        """
+        Teacher reward:
+          - Average magnitude of student advancement
+          - ZPD alignment rate (correct vs. mismatches)
+          - Eliciting high‐quality student questions
+          - One‐time class mastery bonus
+        """
         # TODO: all the numbers here being added/subtracted are arbitrary - need to find good values or tune them or wtv
         # Base reward for average advancement (simple version)
-        avg_advancement = sum(level_advanced.values()) / self.num_students  # avg number of students that improved
-        # TODO: level_advanced consists of boolean values (improve or not) - we can change this to be how much they improved - how many bloom levels they jumped
-        rewards[self.teacher.agent_id] += avg_advancement * 1.0
 
-        # Apply accumulated ZPD bonuses/penalties
-        rewards[self.teacher.agent_id] += teacher_zpd_bonus
-        rewards[self.teacher.agent_id] += teacher_zpd_penalty
+        N = self.num_students
 
-        # Reward teacher for eliciting high-level questions (average Bloom bonus given to students)
-        if self.num_students > 0:
-            rewards[self.teacher.agent_id] += (
-                student_bloom_bonus_total / self.num_students
-            )
+        # --- Advancement Magnitude ---
+        total_delta = sum(new_bloom_levels.values()) - sum(old_bloom_levels.values())
+        avg_delta = total_delta / max(1,N)
+        w_t_adv = 1.0
+        rewards[self.teacher.agent_id] += avg_delta * w_t_adv
 
+        # --- ZPD Alignment ---
+        # count matches vs. mismatches
+        matches = sum(1 for s, lvl in old_bloom_levels.items() 
+        if ((teacher_action == TeacherAgent.ACTION_SIMPLE and lvl <= StudentAgent.BLOOM_UNDERSTAND) 
+            or (teacher_action == TeacherAgent.ACTION_COMPLEX and lvl >= StudentAgent.BLOOM_APPLY)))
+
+        mismatches = N - matches
+        zpd_score = (matches - mismatches) / max(1,N)
+        w_zpd = 0.5
+        rewards[self.teacher.agent_id] += zpd_score * w_zpd
+
+        # Accumulated per‐student ZPD bonuses/penalties
+        rewards[self.teacher.agent_id] += teacher_zpd_bonus + teacher_zpd_penalty
+
+        # --- Eliciting High‐Quality Questions ---
+        # average lift in student questions over their prior level
+        total_q_lift = 0.0
+        for s, old_lvl in old_bloom_levels.items():
+            question_level = estimated_question_levels.get(s, old_lvl)
+            lift = max(0, question_level - old_lvl)
+            denom = max(1, StudentAgent.NUM_BLOOM_LEVELS - old_lvl)
+            total_q_lift += lift / denom
+        avg_q_lift = total_q_lift / max(1,N)
+        w_tq = 0.5
+        rewards[self.teacher.agent_id] += avg_q_lift * w_tq
+        
         # Goal achievement bonus for teacher (all students reach max level)
         if all(level == StudentAgent.NUM_BLOOM_LEVELS for level in new_bloom_levels.values()) \
             and not all(level == StudentAgent.NUM_BLOOM_LEVELS for level in old_bloom_levels.values()):
@@ -483,8 +535,21 @@ class ClassroomEnv(MultiAgentEnv):
 
         # calculate teacher rewards
         self._calculate_teacher_reward(rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
-                                       student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty)
+                                       student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty, teacher_action, estimated_question_levels)
+        
+        # Track reward component breakdown for metrics
+        # added stuff for metrics - not sure if i need this though
+        if rewards[self.teacher.agent_id] != 0:  # avoid division by zero
+            # Calculate contribution percentages
+            advancement_contribution = (sum(level_advanced.values()) / self.num_students) / rewards[self.teacher.agent_id]
+            zpd_contribution = (teacher_zpd_bonus + teacher_zpd_penalty) / rewards[self.teacher.agent_id]
+            question_contribution = (student_bloom_bonus_total / self.num_students if self.num_students > 0 else 0) / rewards[self.teacher.agent_id]               
 
+            log_data("Reward Breakdown: (in teacher rewards)")
+            log_data(f"\t{self.teacher.agent_id} - Advancement Contribution: {advancement_contribution}")
+            log_data(f"\t{self.teacher.agent_id} - ZPD Contribution: {zpd_contribution}")
+            log_data(f"\t{self.teacher.agent_id} - Question Contribution: {question_contribution}")
+            
         return rewards
 
 
