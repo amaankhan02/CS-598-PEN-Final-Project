@@ -224,6 +224,8 @@ class ClassroomEnv(MultiAgentEnv):
 
         # Teacher generates explanation if applicable (after student actions)
         explanation = None
+        num_students_asking = 0
+        exp_quality = 1
         if teacher_action == TeacherAgent.ACTION_SIMPLE or teacher_action == TeacherAgent.ACTION_COMPLEX:
             # Generate explanation based on average Bloom level for simplicity
             avg_bloom_level = round(
