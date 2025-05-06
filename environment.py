@@ -6,7 +6,50 @@ from ray.rllib.env import MultiAgentEnv
 
 from agents import BLOOM_LEVEL_MAP, StudentAgent, TeacherAgent
 from utils import analyze_text_for_bloom
+from config import LOG_FILE_NAME
 
+
+def log_data(msg):
+    with open(LOG_FILE_NAME, "a") as f:
+        f.write(msg + "\n")
+        print(msg)
+
+def teacher_action_to_str(action):
+    if action == TeacherAgent.ACTION_SIMPLE:
+        return "Simple"
+    elif action == TeacherAgent.ACTION_COMPLEX:
+        return "Complex"
+    else:
+        return "Unknown - " + str(action)
+
+def student_action_to_str(action):
+    if action == StudentAgent.ACTION_ASK:
+        return "Ask"
+    elif action == StudentAgent.ACTION_STUDY:
+        return "Study"
+    else:
+        return "Unknown - " + str(action)
+    
+def student_bloom_level_to_str(bloom_level):
+    if bloom_level == StudentAgent.BLOOM_REMEMBER:
+        return "Remember"
+    elif bloom_level == StudentAgent.BLOOM_UNDERSTAND:
+        return "Understand"
+    elif bloom_level == StudentAgent.BLOOM_APPLY:
+        return "Apply"
+    elif bloom_level == StudentAgent.BLOOM_ANALYZE:
+        return "Analyze"
+    elif bloom_level == StudentAgent.BLOOM_EVALUATE:
+        return "Evaluate"
+    elif bloom_level == StudentAgent.BLOOM_CREATE:
+        return "Create"
+    else:
+        return "Unknown - " + str(bloom_level)
+    
+def log_dictionary(dictionary, dict_name: str):
+    log_data(f"{dict_name}:")
+    for key, value in dictionary.items():
+        log_data(f"\t{key}: {value}")
 
 class ClassroomEnv(MultiAgentEnv):
     """A simple classroom environment for teaching and learning"""
@@ -22,6 +65,7 @@ class ClassroomEnv(MultiAgentEnv):
 
         self.config = config
         self.max_steps = config.get("max_steps", 20)
+        self._episode_count = 0     # used by my logger
 
         # Required configs
         if "topic" not in config:
@@ -95,6 +139,7 @@ class ClassroomEnv(MultiAgentEnv):
         Returns:
             tuple: (observation dicitionary, info dictionary)
         """
+        # ! NEW EPISODE STARTS AFTER RESET IS CALLED ! 
         super().reset(seed=seed)
         self.current_step = 0
         self.teacher.reset()
@@ -119,11 +164,21 @@ class ClassroomEnv(MultiAgentEnv):
         TODO: area of improvement - change the termination or success criteria for the teacher?
         """
         self.current_step += 1
+        
+        if self.current_step == 1: # NEW EPISODE HAS STARTED
+            self._episode_count += 1
+            log_data("\n\n" + "*"*10 + f"Episode {self._episode_count} has started" + "*"*10)
+        log_data(f"\n-----Step {self.current_step} has started-----")
 
-        teacher_action = action_dict[self.teacher.agent_id]
+        if self.teacher.agent_id not in action_dict:
+            print(f"Warning: No teacher action provided")
+            # ! not really sure what to do here. but i'm confused why this would happen
+            return self._get_obs(), {}, {}, {}, self._get_infos()
+        teacher_action = action_dict.get(self.teacher.agent_id, TeacherAgent.ACTION_SIMPLE)
 
-        print(f"\n--- Step {self.current_step} ---")
-        print(f"Teacher Action: {teacher_action}")
+        # print(f"\n--- Step {self.current_step} ---")
+        # print(f"Teacher Action: {teacher_action}")
+        log_data(f"Teacher Action: {teacher_action_to_str(teacher_action)}")
 
         # Store old Bloom levels for reward calculation
         old_bloom_levels = {
@@ -141,45 +196,40 @@ class ClassroomEnv(MultiAgentEnv):
             if student_id in action_dict:
                 student_action = action_dict[student_id]
                 student_actions[student_id] = student_action
-                print(
-                    f"{student_id} Action: {student_action} (Current Bloom: {student.current_bloom_level})"
-                )
+                
+                # print(f"{student_id} Action: {student_action} (Current Bloom: {student.current_bloom_level})")
+                log_data(f"{student_id} Action: {student_action_to_str(student_action)} (Current Bloom: {student.current_bloom_level} - {student_bloom_level_to_str(student.current_bloom_level)})")
 
                 # Update student state (Bloom level)
-                level_advanced[student_id] = student.update_state(
-                    teacher_action, student_action
-                )
+                level_advanced[student_id] = student.update_state(teacher_action, student_action)
+                log_data(f"{student_id} Level Advanced: {'TRUE' if level_advanced[student_id] else 'FALSE'}")
 
                 # If student asks a question, generate it and analyze its Bloom level
                 if student_action == StudentAgent.ACTION_ASK:
                     question_text = student.generate_question(self.topic)
                     questions[student_id] = question_text
                     print(f"[LLM Output] {student_id} Question: {question_text}")
-
-                    student_level_desc = BLOOM_LEVEL_MAP.get(
-                        student.current_bloom_level, "Unknown"
-                    )
-                    estimated_level = analyze_text_for_bloom(
-                        question_text, student_level_desc, self.topic
-                    )
+                    # log_data(f"{student_id} Question: {question_text}")
+                    student_level_desc = BLOOM_LEVEL_MAP.get(student.current_bloom_level, "Unknown")
+                    log_data(f"{student_id} Current Student Bloom Level Desc: {student_level_desc}")
+                    
+                    estimated_level = analyze_text_for_bloom(question_text, student_level_desc, self.topic)
                     estimated_bloom_levels[student_id] = estimated_level
-                    student.last_question_bloom_level = (
-                        estimated_level  # Store in agent state
-                    )
+                    
+                    log_data(f"{student_id}: Estimated Question Bloom Level and Description: {estimated_level} and {student_bloom_level_to_str(estimated_level)}")
+                    student.last_question_bloom_level = estimated_level
             else:
-                print(f"Warning: No action provided for {student_id}")
+                log_data(f"Warning: No action provided for {student_id}")
 
         # Teacher generates explanation if applicable (after student actions)
         explanation = None
-        if (
-            teacher_action == TeacherAgent.ACTION_SIMPLE
-            or teacher_action == TeacherAgent.ACTION_COMPLEX
-        ):
+        if teacher_action == TeacherAgent.ACTION_SIMPLE or teacher_action == TeacherAgent.ACTION_COMPLEX:
             # Generate explanation based on average Bloom level for simplicity
             avg_bloom_level = round(
                 sum(s.current_bloom_level for s in self.students.values())
                 / self.num_students
             )
+            log_data(f"Current Class Avg Bloom Level: {avg_bloom_level}")
             # TODO: pass the student's zpd alignment to the teacher and have the teacher's response based on that as well
             explanation = self.teacher.generate_explanation(avg_bloom_level, self.topic)
             print(
@@ -191,7 +241,8 @@ class ClassroomEnv(MultiAgentEnv):
             student_id: student.current_bloom_level
             for student_id, student in self.students.items()
         }
-        print(f"Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}")
+        # print(f"Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}")
+        log_data(f"NEW Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}. ")  # prints a dictionary with student_id as key and bloom level as value
 
         # calculate rewards
         rewards = self._calculate_rewards(
@@ -202,20 +253,37 @@ class ClassroomEnv(MultiAgentEnv):
             level_advanced,
             estimated_bloom_levels,  # Pass estimated levels from analysis
         )
-        print(f"Rewards calculated: {rewards}")
+        # print(f"Rewards calculated: {rewards}")
+        log_data(f"Rewards calculated: {rewards}")
 
         # Terminate if all students reach the highest Bloom level
         all_students_max_bloom = all(
             level == StudentAgent.NUM_BLOOM_LEVELS
             for level in new_bloom_levels.values()
         )
-        terminate_episode = all_students_max_bloom
+        
+        # if at least one student has reached the max bloom level, terminate the episode - meaning we achieved our goal
+        any_students_max_bloom = any(
+            level == StudentAgent.NUM_BLOOM_LEVELS
+            for level in new_bloom_levels.values()
+        )
+        
+        # calculate which students are at the max bloom level and record the step number with it
+        for student_id, student in self.students.items():
+            if student.current_bloom_level == StudentAgent.NUM_BLOOM_LEVELS:
+                log_data(f"{student_id} - Max Bloom Level Reached at Step: {self.current_step}")
+        
+        terminate_episode = any_students_max_bloom
         truncate_episode = self.current_step >= self.max_steps
+        # truncate_episode = False
 
-        terminated = {agent_id: terminate_episode for agent_id in self._agent_ids}
+        terminated = {agent_id: any_students_max_bloom for agent_id in self._agent_ids}
         truncated = {agent_id: truncate_episode for agent_id in self._agent_ids}
         terminated["__all__"] = terminate_episode
         truncated["__all__"] = truncate_episode
+        
+        log_data(f"Terminated: {terminated}")
+        log_data(f"Truncated: {truncated}")
 
         # get observations and infos
         observations = self._get_obs()
@@ -225,6 +293,8 @@ class ClassroomEnv(MultiAgentEnv):
         self._add_zpd_alignment_info(infos, old_bloom_levels, teacher_action)    
         self._add_question_explanation_analysis_info(infos, questions, estimated_bloom_levels, explanation)
 
+        print(f"Infos Keys: {infos.keys()}")
+        
         return observations, rewards, terminated, truncated, infos
     
     # TODO: make sure this is correct
@@ -242,6 +312,7 @@ class ClassroomEnv(MultiAgentEnv):
             if student_id not in infos: 
                 infos[student_id] = {}      # Ensure dict exists
             infos[student_id]["zpd_alignment"] = in_zpd_step
+            log_data(f"{student_id} - ZPD Alignment: {in_zpd_step}")
             
     def _add_question_explanation_analysis_info(self, infos, questions, estimated_bloom_levels, explanation):
         if explanation:
@@ -251,6 +322,7 @@ class ClassroomEnv(MultiAgentEnv):
             # Also add the estimated bloom level from analysis
             if student_id in estimated_bloom_levels:
                 infos[student_id]["question_bloom_level"] = estimated_bloom_levels[student_id]
+                log_data(f"{student_id} - Question Bloom Level: {estimated_bloom_levels[student_id]}")
 
     def _get_obs(self):
         """Gets the current observations for each agent based on Bloom levels."""
@@ -320,24 +392,28 @@ class ClassroomEnv(MultiAgentEnv):
         elif (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level <= StudentAgent.BLOOM_UNDERSTAND):
             teacher_zpd_penalty_delta -= 0.15
 
-        # --- Reward for Bloom Level Advancement ---
+        # --- Reward for Bloom Level Advancement - Based on Magnitude of Change ---            
         if level_advanced[student_id]:
-            advancement_reward = 1.5  # Base reward for advancing a level
-            # TODO: definitely change this - likely remove (if statement and +0.5 reward)
-            if in_zpd:
-                advancement_reward += 0.5  # Bonus if teacher action was in ZPD
-            rewards[student_id] += advancement_reward
+            level_delta = new_level - old_level
+            if level_delta > 0:
+                w_adv = 1.0
+                advancement_reward = w_adv * level_delta
+                rewards[student_id] += advancement_reward
 
         # --- Reward for Asking High-Level Questions ---
         if student_action == StudentAgent.ACTION_ASK:
             # Use the estimated Bloom level from LLM analysis
-            # Default to 1 if no analysis
-            question_level = estimated_question_levels.get(student_id, 1)
+            # Default to student's current level if no analysis
+            question_level = estimated_question_levels.get(student_id, old_level)
+            improvement = max(0, question_level - old_level)
+            denom = max(1, StudentAgent.NUM_BLOOM_LEVELS - old_level)
+            question_quality = improvement / denom
+            w_q = 0.5
             
             # Reward proportional to the question level (scaled)
-            bloom_reward = (question_level / StudentAgent.NUM_BLOOM_LEVELS) * 0.5  # Max 0.5 reward
-            rewards[student_id] += bloom_reward
-            student_bloom_bonus_total_delta += bloom_reward  # Accumulate for potential teacher reward
+            q_reward = question_quality * w_q
+            rewards[student_id] += q_reward
+            student_bloom_bonus_total_delta += q_reward  # Accumulate for potential teacher reward
 
         # --- Goal Achievement Bonus (Reaching Max Bloom Level) ---
         if new_level == StudentAgent.NUM_BLOOM_LEVELS and old_level < StudentAgent.NUM_BLOOM_LEVELS:
@@ -346,24 +422,76 @@ class ClassroomEnv(MultiAgentEnv):
             
         return teacher_zpd_bonus_delta, teacher_zpd_penalty_delta, student_bloom_bonus_total_delta
     
+    # Old teacher reward calculations - 
+    # def _calculate_teacher_reward(self, rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
+    #                               student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty):
+    #     # TODO: all the numbers here being added/subtracted are arbitrary - need to find good values or tune them or wtv
+    #     # Base reward for average advancement (simple version)
+    #     avg_advancement = sum(level_advanced.values()) / self.num_students  # avg number of students that improved
+    #     # TODO: level_advanced consists of boolean values (improve or not) - we can change this to be how much they improved - how many bloom levels they jumped
+    #     rewards[self.teacher.agent_id] += avg_advancement * 1.0
+
+    #     # Apply accumulated ZPD bonuses/penalties
+    #     rewards[self.teacher.agent_id] += teacher_zpd_bonus
+    #     rewards[self.teacher.agent_id] += teacher_zpd_penalty
+
+    #     # Reward teacher for eliciting high-level questions (average Bloom bonus given to students)
+    #     if self.num_students > 0:
+    #         rewards[self.teacher.agent_id] += (
+    #             student_bloom_bonus_total / self.num_students
+    #         )
+
+    #     # Goal achievement bonus for teacher (all students reach max level)
+    #     if all(level == StudentAgent.NUM_BLOOM_LEVELS for level in new_bloom_levels.values()) \
+    #         and not all(level == StudentAgent.NUM_BLOOM_LEVELS for level in old_bloom_levels.values()):
+    #         rewards[self.teacher.agent_id] += 5.0
+    
     def _calculate_teacher_reward(self, rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
-                                  student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty):
+                                  student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty, teacher_action, estimated_question_levels):
+        """
+        Teacher reward:
+          - Average magnitude of student advancement
+          - ZPD alignment rate (correct vs. mismatches)
+          - Eliciting high‐quality student questions
+          - One‐time class mastery bonus
+        """
         # TODO: all the numbers here being added/subtracted are arbitrary - need to find good values or tune them or wtv
         # Base reward for average advancement (simple version)
-        avg_advancement = sum(level_advanced.values()) / self.num_students  # avg number of students that improved
-        # TODO: level_advanced consists of boolean values (improve or not) - we can change this to be how much they improved - how many bloom levels they jumped
-        rewards[self.teacher.agent_id] += avg_advancement * 1.0
 
-        # Apply accumulated ZPD bonuses/penalties
-        rewards[self.teacher.agent_id] += teacher_zpd_bonus
-        rewards[self.teacher.agent_id] += teacher_zpd_penalty
+        N = self.num_students
 
-        # Reward teacher for eliciting high-level questions (average Bloom bonus given to students)
-        if self.num_students > 0:
-            rewards[self.teacher.agent_id] += (
-                student_bloom_bonus_total / self.num_students
-            )
+        # --- Advancement Magnitude ---
+        total_delta = sum(new_bloom_levels.values()) - sum(old_bloom_levels.values())
+        avg_delta = total_delta / max(1,N)
+        w_t_adv = 1.0
+        rewards[self.teacher.agent_id] += avg_delta * w_t_adv
 
+        # --- ZPD Alignment ---
+        # count matches vs. mismatches
+        matches = sum(1 for s, lvl in old_bloom_levels.items() 
+        if ((teacher_action == TeacherAgent.ACTION_SIMPLE and lvl <= StudentAgent.BLOOM_UNDERSTAND) 
+            or (teacher_action == TeacherAgent.ACTION_COMPLEX and lvl >= StudentAgent.BLOOM_APPLY)))
+
+        mismatches = N - matches
+        zpd_score = (matches - mismatches) / max(1,N)
+        w_zpd = 0.5
+        rewards[self.teacher.agent_id] += zpd_score * w_zpd
+
+        # Accumulated per‐student ZPD bonuses/penalties
+        rewards[self.teacher.agent_id] += teacher_zpd_bonus + teacher_zpd_penalty
+
+        # --- Eliciting High‐Quality Questions ---
+        # average lift in student questions over their prior level
+        total_q_lift = 0.0
+        for s, old_lvl in old_bloom_levels.items():
+            question_level = estimated_question_levels.get(s, old_lvl)
+            lift = max(0, question_level - old_lvl)
+            denom = max(1, StudentAgent.NUM_BLOOM_LEVELS - old_lvl)
+            total_q_lift += lift / denom
+        avg_q_lift = total_q_lift / max(1,N)
+        w_tq = 0.5
+        rewards[self.teacher.agent_id] += avg_q_lift * w_tq
+        
         # Goal achievement bonus for teacher (all students reach max level)
         if all(level == StudentAgent.NUM_BLOOM_LEVELS for level in new_bloom_levels.values()) \
             and not all(level == StudentAgent.NUM_BLOOM_LEVELS for level in old_bloom_levels.values()):
@@ -409,8 +537,21 @@ class ClassroomEnv(MultiAgentEnv):
 
         # calculate teacher rewards
         self._calculate_teacher_reward(rewards, old_bloom_levels, new_bloom_levels, level_advanced, 
-                                       student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty)
+                                       student_bloom_bonus_total, teacher_zpd_bonus, teacher_zpd_penalty, teacher_action, estimated_question_levels)
+        
+        # Track reward component breakdown for metrics
+        # added stuff for metrics - not sure if i need this though
+        if rewards[self.teacher.agent_id] != 0:  # avoid division by zero
+            # Calculate contribution percentages
+            advancement_contribution = (sum(level_advanced.values()) / self.num_students) / rewards[self.teacher.agent_id]
+            zpd_contribution = (teacher_zpd_bonus + teacher_zpd_penalty) / rewards[self.teacher.agent_id]
+            question_contribution = (student_bloom_bonus_total / self.num_students if self.num_students > 0 else 0) / rewards[self.teacher.agent_id]               
 
+            log_data("Reward Breakdown: (in teacher rewards)")
+            log_data(f"\t{self.teacher.agent_id} - Advancement Contribution: {advancement_contribution}")
+            log_data(f"\t{self.teacher.agent_id} - ZPD Contribution: {zpd_contribution}")
+            log_data(f"\t{self.teacher.agent_id} - Question Contribution: {question_contribution}")
+            
         return rewards
 
 
