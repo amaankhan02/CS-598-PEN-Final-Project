@@ -228,11 +228,9 @@ class ClassroomEnv(MultiAgentEnv):
         exp_quality = 1
         if teacher_action == TeacherAgent.ACTION_SIMPLE or teacher_action == TeacherAgent.ACTION_COMPLEX:
             # Generate explanation based on average Bloom level for simplicity
-            avg_bloom_level = round(
-                sum(s.current_bloom_level for s in self.students.values())
-                / self.num_students
-            )
-            log_data(f"Current Class Avg Bloom Level: {avg_bloom_level}")
+            unrounded_avg_bloom_level = (sum(s.current_bloom_level for s in self.students.values()) / self.num_students)
+            avg_bloom_level = round(unrounded_avg_bloom_level)
+            log_data(f"Current Class Avg Bloom Level: {unrounded_avg_bloom_level} -> {avg_bloom_level}")
             # TODO: pass the student's zpd alignment to the teacher and have the teacher's response based on that as well
             explanation = self.teacher.generate_explanation(avg_bloom_level, self.topic)
             print(
