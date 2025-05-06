@@ -158,7 +158,7 @@ def create_algo_config(env_config):
             lr=DEFAULT_TRAINING_CONFIG["lr"],
             lambda_=0.95,
             train_batch_size=DEFAULT_TRAINING_CONFIG["train_batch_size"],
-            sgd_minibatch_size=64,
+            sgd_minibatch_size=DEFAULT_TRAINING_CONFIG["sgd_minibatch_size"],
             num_sgd_iter=DEFAULT_TRAINING_CONFIG["num_sgd_iter"],
             model={
                 "fcnet_hiddens": [64, 64],
@@ -218,11 +218,12 @@ if __name__ == "__main__":
     # create metrics directory if it doesn't exist
     os.makedirs(METRICS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
-    if len(sys.argv) != 2:
-        print("Usage: python train.py <num_iterations>")
-        sys.exit(1)
     
-    num_iterations = int(sys.argv[1])
+    if len(sys.argv) < 2:
+        num_iterations = DEFAULT_TRAINING_CONFIG["num_iterations"]
+    else:
+        num_iterations = int(sys.argv[1])
+    print(f"Training for {num_iterations} iterations")
     
     try:
         main(num_iterations)
