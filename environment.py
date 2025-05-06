@@ -394,42 +394,66 @@ class ClassroomEnv(MultiAgentEnv):
         in_zpd = False
         teacher_zpd_bonus_delta = 0.0
         teacher_zpd_penalty_delta = 0.0
-        student_bloom_bonus_total_delta = 0.0
+        student_bloom_bonus_total_delta = 0.0 # Initialize here
         if (teacher_action == TeacherAgent.ACTION_SIMPLE and old_level <= StudentAgent.BLOOM_UNDERSTAND) or \
-            (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level >= StudentAgent.BLOOM_APPLY):
+           (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level >= StudentAgent.BLOOM_APPLY):
             in_zpd = True
-            teacher_zpd_bonus_delta += 0.1  # Small bonus per student helped within ZPD
+            teacher_zpd_bonus_delta += 0.1
         elif (teacher_action == TeacherAgent.ACTION_COMPLEX and old_level <= StudentAgent.BLOOM_UNDERSTAND):
-            teacher_zpd_penalty_delta -= 0.15
+             teacher_zpd_penalty_delta -= 0.15
 
-        # --- Reward for Bloom Level Advancement - Based on Magnitude of Change ---            
+
+        # --- Reward for Bloom Level Advancement ---
         if level_advanced[student_id]:
             level_delta = new_level - old_level
             if level_delta > 0:
-                w_adv = 1.0
+                # --- Use the increased w_adv recommended previously ---
+                w_adv = 3.0 # Example increased weight
                 advancement_reward = w_adv * level_delta
                 rewards[student_id] += advancement_reward
+                log_data(f"\t{student_id} received advancement reward: +{advancement_reward:.2f}")
 
-        # --- Reward for Asking High-Level Questions ---
+
+        # --- NEW: Reward for Asking High-Level Questions ---
         if student_action == StudentAgent.ACTION_ASK:
-            # Use the estimated Bloom level from LLM analysis
-            # Default to student's current level if no analysis
-            question_level = estimated_question_levels.get(student_id, old_level)
-            improvement = max(0, question_level - old_level)
-            denom = max(1, StudentAgent.NUM_BLOOM_LEVELS - old_level)
-            question_quality = improvement / denom
-            w_q = 0.5
-            
-            # Reward proportional to the question level (scaled)
-            q_reward = question_quality * w_q
-            rewards[student_id] += q_reward
-            student_bloom_bonus_total_delta += q_reward  # Accumulate for potential teacher reward
+            # Check if the question's estimated level is available
+            if student_id in estimated_question_levels:
+                question_level = estimated_question_levels[student_id]
+                log_data(f"\t{student_id} asked question with estimated level: {question_level} (current level: {old_level})")
+
+                # Reward based on improvement over current level
+                improvement = max(0, question_level - old_level)
+
+                # Option 1: Reward proportional to improvement magnitude
+                w_q_improvement = 0.75 # Weight for question improvement reward (tune this)
+                q_reward = w_q_improvement * improvement
+
+                # Option 2: Scaled reward (like original teacher reward)
+                # denom = max(1, StudentAgent.NUM_BLOOM_LEVELS - old_level)
+                # question_quality = improvement / denom
+                # w_q_scaled = 0.5 # Weight for scaled question quality
+                # q_reward = w_q_scaled * question_quality
+
+                # --- Add the calculated question reward ---
+                if q_reward > 0:
+                    rewards[student_id] += q_reward
+                    student_bloom_bonus_total_delta += q_reward  # Accumulate for teacher reward
+                    log_data(f"\t{student_id} received question quality reward: +{q_reward:.2f}")
+            else:
+                # Handle case where question level wasn't estimated (optional)
+                log_data(f"\t{student_id} asked question, but level estimation not available.")
+                pass
+
 
         # --- Goal Achievement Bonus (Reaching Max Bloom Level) ---
         if new_level == StudentAgent.NUM_BLOOM_LEVELS and old_level < StudentAgent.NUM_BLOOM_LEVELS:
-            rewards[student_id] += 5.0  # Bonus for reaching highest level
-            # TODO: 5 might be kinda crazy high - LOW PRIORITY to change
-            
+             # --- Use the increased bonus recommended previously ---
+             max_bloom_bonus = 10.0 # Example increased bonus
+             rewards[student_id] += max_bloom_bonus
+             log_data(f"\t{student_id} reached MAX Bloom level! Bonus: +{max_bloom_bonus:.2f}")
+
+
+        # Return the deltas for the teacher's reward calculation
         return teacher_zpd_bonus_delta, teacher_zpd_penalty_delta, student_bloom_bonus_total_delta
     
     # Old teacher reward calculations - 
@@ -494,11 +518,10 @@ class ClassroomEnv(MultiAgentEnv):
 
         # 0.  β‑weights (fallback to defaults if user forgot the key)
         β1, β2, β3, β4, β5 = self.config.get(
-            "teacher_reward_weights", [1.0, 0.5, 0.3, 0.5, 0.05]
+            "teacher_reward_weights", [7.5, 0.01, 0.25, 1.0, 0.001]
         )
         progress = sum(
             (new_bloom_levels[s] - old_bloom_levels[s])
-            / max(1, StudentAgent.NUM_BLOOM_LEVELS - old_bloom_levels[s])
             for s in self.students
         ) / N
         log_data(f"\tProgress: {progress}")
@@ -521,7 +544,7 @@ class ClassroomEnv(MultiAgentEnv):
         # 5. time penalty (encourage finishing early)
         time_pen = self.current_step / self.max_steps
         log_data(f"\tTime Penalty: {time_pen}")
-        
+        question_bonus_multiplier = 2.5
         # ----- aggregate everything -----
         teacher_reward = (
             β1 * progress
@@ -531,7 +554,7 @@ class ClassroomEnv(MultiAgentEnv):
             - β5 * time_pen
             + teacher_zpd_bonus
             + teacher_zpd_penalty
-            + (student_bloom_bonus_total / N if N else 0.0)  # carry‑over bonus
+            + (student_bloom_bonus_total / N if N else 0.0) * question_bonus_multiplier  # carry‑over bonus
         )
 
         # terminal bonus if all students reach Bloom level 6

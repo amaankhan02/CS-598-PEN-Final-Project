@@ -43,8 +43,12 @@ class TeacherAgent:
         level_desc = BLOOM_LEVEL_MAP.get(student_bloom_level, "at an unknown cognitive level")
 
         prompt = (
-            f"You are an expert teacher. Explain the core concept of '{topic}' "
-            f"in a concise and brief manner (less than 50 words) for a student who is currently at the '{level_desc}' stage (Bloom's Taxonomy)."
+            f"You are an expert teacher explaining the core concept of '{topic}' "
+            f"to a class where the average student is at the '{level_desc}' stage (Bloom's Taxonomy)."
+            # Instruct the LLM to include provocative elements:
+            f"Provide a concise explanation (less than 50 words) that not only suits this level "
+            f"but importantly, **includes a thought-provoking element designed to encourage students to ask more advanced (e.g., 'Analyze', 'Evaluate', 'Create') questions.** "
+            f"This could be by briefly mentioning a complexity, a potential application, a limitation, a related concept, or posing a subtle 'what if' scenario."
         )
         # TODO: add few shot examples for bloom levels or explanation on what they mean so that the explanatino is better?
         # TODO: update prommpt to include ZPD alignment
@@ -138,25 +142,28 @@ class StudentAgent:
         if teacher_action == TeacherAgent.ACTION_SIMPLE:
             # Simple actions are most effective for moving from Remember -> Understand or Understand -> Apply
             if self.current_bloom_level <= self.BLOOM_UNDERSTAND:
-                base_prob = 0.7
+                base_prob = 0.9
             elif self.current_bloom_level == self.BLOOM_APPLY:
-                base_prob = 0.3 # Less effective for higher levels
+                base_prob = 0.60 # Less effective for higher levels
             else:
-                base_prob = 0.1 # Least effective
+                base_prob = 0.30 # Least effective
 
         elif teacher_action == TeacherAgent.ACTION_COMPLEX:
             # Complex actions are needed for higher levels
             if self.current_bloom_level == self.BLOOM_REMEMBER:
-                base_prob = 0.1 # Not very effective for beginners
+                base_prob = 0.25 # Not very effective for beginners
             elif self.current_bloom_level == self.BLOOM_UNDERSTAND:
-                base_prob = 0.4
+                base_prob = 0.70
             elif self.current_bloom_level == self.BLOOM_APPLY:
-                base_prob = 0.8 # Effective for Apply -> Analyze
+                base_prob = 0.88 # Effective for Apply -> Analyze
             elif self.current_bloom_level >= self.BLOOM_ANALYZE:
-                base_prob = 0.9 # Very effective for Analyze -> Evaluate -> Create
+                base_prob = 0.99 # Very effective for Analyze -> Evaluate -> Create
 
         # Apply student's learning coefficient
-        final_prob = base_prob * self.learning_coef
+        baseline_study_prob = 0.1
+        effective_base_prob = min(base_prob + baseline_study_prob, 1.0)
+
+        final_prob = effective_base_prob * self.learning_coef
         return np.clip(final_prob, 0.0, 1.0) # Ensure probability is between 0 and 1
 
     def update_state(self, teacher_action, student_action) -> bool:
@@ -194,6 +201,8 @@ class StudentAgent:
         """Generates a question based on the student's type and Bloom level using the LLM."""
         # Map Bloom level integer to descriptive string
         level_desc = BLOOM_LEVEL_MAP.get(self.current_bloom_level, "at an unknown cognitive level")
+        next_level_num = min(self.current_bloom_level + 1, self.NUM_BLOOM_LEVELS)
+        next_level_desc = BLOOM_LEVEL_MAP.get(next_level_num, "the next level")
 
         type_desc_map = {
             "beginner": "As a beginner student,",
@@ -206,10 +215,10 @@ class StudentAgent:
 
         prompt = (
             f"You are a student learning about '{topic}'. You are currently thinking at the '{level_desc}' stage (Bloom's Taxonomy). "
-            f"{type_desc} Ask one specific, relevant question to your teacher that demonstrates this level of thinking "
-            f"and helps you move towards the next level. The question should be less than 15 words maximum."
-            # Optional: Add constraint to encourage higher-level questions if appropriate
-            # f" Try to ask a question that involves [Applying/Analyzing/Evaluating/Creating] if possible."
+            f"{type_desc} Ask one specific, relevant question to your teacher. Your question should aim to bridge the gap towards '{next_level_desc}' " # Explicitly aim higher
+            f"or demonstrate thinking slightly beyond your current level. Keep the question concise (max 30 words)." # Increased max length slightly if needed
+            # Optional constraint (uncomment and adapt if desired):
+            # f" If your current level is Apply or higher, try to ask a question that involves Analyzing, Evaluating, or Creating."
         )
 
         question = get_gemini_response(prompt)
