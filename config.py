@@ -9,7 +9,7 @@ GEMINI_MODEL_NAME = "gemini-2.0-flash-lite"  # has the highest RPM
 METRICS_DIR = "metrics/testing"
 
 DEFAULT_ENV_CONFIG = {
-    "max_steps": 10,
+    "max_steps": 5,
     "topic": "Astronomy",
     "num_students": 3,
     "student_types": ["beginner", "intermediate", "advanced"],
