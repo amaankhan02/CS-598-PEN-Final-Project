@@ -15,7 +15,7 @@ DEFAULT_ENV_CONFIG = {
     "student_types": ["beginner", "intermediate", "advanced"],
 }
 LOG_DIR = "logs"
-LOG_FILE_NAME = f"{LOG_DIR}/log_experiment_1.txt"  # this will be changed by train.py
+LOG_FILE_NAME = f"{LOG_DIR}/log_base_experiment_1.txt"  # this will be changed by train.py
 # episodes_per_iteration = ceil(train_batch_size / max_steps)
 DEFAULT_TRAINING_CONFIG = {
     "num_iterations": 5,

@@ -131,6 +131,7 @@ def train(num_iterations, algo):
     # checkpoint_dir = algo.save()
     algo.stop()
     ray.shutdown()
+    print("Training finished.")
 
     # print(f"Checkpoint saved in directory: {checkpoint_dir}. Training finished.")
 

@@ -61,3 +61,5 @@ tensorboard/
 wandb/
 /data/
 /metrics/
+/json_out_logs/
+*.json
