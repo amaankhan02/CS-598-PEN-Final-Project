@@ -6,7 +6,45 @@ from ray.rllib.env import MultiAgentEnv
 
 from agents import BLOOM_LEVEL_MAP, StudentAgent, TeacherAgent
 from utils import analyze_text_for_bloom
+from config import LOG_FILE_NAME
 
+
+def log_data(msg):
+    with open(LOG_FILE_NAME, "a") as f:
+        f.write(msg + "\n")
+        print(msg)
+
+def teacher_action_to_str(action):
+    if action == TeacherAgent.ACTION_SIMPLE:
+        return "Simple"
+    elif action == TeacherAgent.ACTION_COMPLEX:
+        return "Complex"
+    else:
+        return "Unknown - " + str(action)
+
+def student_action_to_str(action):
+    if action == StudentAgent.ACTION_ASK:
+        return "Ask"
+    elif action == StudentAgent.ACTION_STUDY:
+        return "Study"
+    else:
+        return "Unknown - " + str(action)
+    
+def student_bloom_level_to_str(bloom_level):
+    if bloom_level == StudentAgent.BLOOM_REMEMBER:
+        return "Remember"
+    elif bloom_level == StudentAgent.BLOOM_UNDERSTAND:
+        return "Understand"
+    elif bloom_level == StudentAgent.BLOOM_APPLY:
+        return "Apply"
+    elif bloom_level == StudentAgent.BLOOM_ANALYZE:
+        return "Analyze"
+    elif bloom_level == StudentAgent.BLOOM_EVALUATE:
+        return "Evaluate"
+    elif bloom_level == StudentAgent.BLOOM_CREATE:
+        return "Create"
+    else:
+        return "Unknown - " + str(bloom_level)
 
 class ClassroomEnv(MultiAgentEnv):
     """A simple classroom environment for teaching and learning"""
@@ -22,6 +60,7 @@ class ClassroomEnv(MultiAgentEnv):
 
         self.config = config
         self.max_steps = config.get("max_steps", 20)
+        self._episode_count = 0     # used by my logger
 
         # Required configs
         if "topic" not in config:
@@ -95,6 +134,7 @@ class ClassroomEnv(MultiAgentEnv):
         Returns:
             tuple: (observation dicitionary, info dictionary)
         """
+        # ! NEW EPISODE STARTS AFTER RESET IS CALLED ! 
         super().reset(seed=seed)
         self.current_step = 0
         self.teacher.reset()
@@ -119,11 +159,21 @@ class ClassroomEnv(MultiAgentEnv):
         TODO: area of improvement - change the termination or success criteria for the teacher?
         """
         self.current_step += 1
+        
+        if self.current_step == 1: # NEW EPISODE HAS STARTED
+            log_data("\n\n" + "*"*10 + f"Episode {self._episode_count} has started" + "*"*10)
+            self._episode_count += 1
+        log_data(f"\n-----Step {self.current_step} has started-----")
 
-        teacher_action = action_dict[self.teacher.agent_id]
+        if self.teacher.agent_id not in action_dict:
+            print(f"Warning: No teacher action provided")
+            # ! not really sure what to do here. but i'm confused why this would happen
+            return self._get_obs(), {}, {}, {}, self._get_infos()
+        teacher_action = action_dict.get(self.teacher.agent_id, TeacherAgent.ACTION_SIMPLE)
 
-        print(f"\n--- Step {self.current_step} ---")
-        print(f"Teacher Action: {teacher_action}")
+        # print(f"\n--- Step {self.current_step} ---")
+        # print(f"Teacher Action: {teacher_action}")
+        log_data(f"Teacher Action: {teacher_action_to_str(teacher_action)}")
 
         # Store old Bloom levels for reward calculation
         old_bloom_levels = {
@@ -141,33 +191,39 @@ class ClassroomEnv(MultiAgentEnv):
             if student_id in action_dict:
                 student_action = action_dict[student_id]
                 student_actions[student_id] = student_action
+                
                 print(
                     f"{student_id} Action: {student_action} (Current Bloom: {student.current_bloom_level})"
                 )
+                log_data(f"{student_id} Action: {student_action_to_str(student_action)} (Current Bloom: {student_bloom_level_to_str(student.current_bloom_level)})")
 
                 # Update student state (Bloom level)
                 level_advanced[student_id] = student.update_state(
                     teacher_action, student_action
                 )
+                log_data(f"{student_id} Level Advanced: {'TRUE' if level_advanced[student_id] else 'FALSE'}")
 
                 # If student asks a question, generate it and analyze its Bloom level
                 if student_action == StudentAgent.ACTION_ASK:
                     question_text = student.generate_question(self.topic)
                     questions[student_id] = question_text
                     print(f"[LLM Output] {student_id} Question: {question_text}")
-
+                    # log_data(f"{student_id} Question: {question_text}")
                     student_level_desc = BLOOM_LEVEL_MAP.get(
                         student.current_bloom_level, "Unknown"
                     )
+                    log_data(f"{student_id} Student Level Desc: {student_level_desc}")
                     estimated_level = analyze_text_for_bloom(
                         question_text, student_level_desc, self.topic
                     )
                     estimated_bloom_levels[student_id] = estimated_level
+                    log_data(f"{student_id} Estimated Bloom Level: {estimated_level}")
                     student.last_question_bloom_level = (
                         estimated_level  # Store in agent state
                     )
             else:
-                print(f"Warning: No action provided for {student_id}")
+                # print(f"Warning: No action provided for {student_id}")
+                log_data(f"Warning: No action provided for {student_id}")
 
         # Teacher generates explanation if applicable (after student actions)
         explanation = None
@@ -192,6 +248,7 @@ class ClassroomEnv(MultiAgentEnv):
             for student_id, student in self.students.items()
         }
         print(f"Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}")
+        log_data(f"Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}")
 
         # calculate rewards
         rewards = self._calculate_rewards(
@@ -203,16 +260,18 @@ class ClassroomEnv(MultiAgentEnv):
             estimated_bloom_levels,  # Pass estimated levels from analysis
         )
         print(f"Rewards calculated: {rewards}")
+        log_data(f"Rewards calculated: {rewards}")
 
         # Terminate if all students reach the highest Bloom level
-        all_students_max_bloom = all(
+        all_students_max_bloom = any(
             level == StudentAgent.NUM_BLOOM_LEVELS
             for level in new_bloom_levels.values()
         )
         terminate_episode = all_students_max_bloom
         truncate_episode = self.current_step >= self.max_steps
+        # truncate_episode = False
 
-        terminated = {agent_id: terminate_episode for agent_id in self._agent_ids}
+        terminated = {agent_id: all_students_max_bloom for agent_id in self._agent_ids}
         truncated = {agent_id: truncate_episode for agent_id in self._agent_ids}
         terminated["__all__"] = terminate_episode
         truncated["__all__"] = truncate_episode
@@ -225,6 +284,8 @@ class ClassroomEnv(MultiAgentEnv):
         self._add_zpd_alignment_info(infos, old_bloom_levels, teacher_action)    
         self._add_question_explanation_analysis_info(infos, questions, estimated_bloom_levels, explanation)
 
+        print(f"Infos Keys: {infos.keys()}")
+        
         return observations, rewards, terminated, truncated, infos
     
     # TODO: make sure this is correct

@@ -6,6 +6,7 @@ load_dotenv()  # load the environment variables from the .env file
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL_NAME = "gemini-2.0-flash-lite"  # has the highest RPM
+METRICS_DIR = "metrics/testing"
 
 DEFAULT_ENV_CONFIG = {
     "max_steps": 5,
@@ -13,6 +14,8 @@ DEFAULT_ENV_CONFIG = {
     "num_students": 3,
     "student_types": ["beginner", "intermediate", "advanced"],
 }
+LOG_DIR = "logs"
+LOG_FILE_NAME = f"{LOG_DIR}/log.txt"  # this will be changed by train.py
 
 DEFAULT_TRAINING_CONFIG = {
     "num_iterations": 1,

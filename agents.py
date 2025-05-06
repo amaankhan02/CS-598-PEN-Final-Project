@@ -44,7 +44,7 @@ class TeacherAgent:
 
         prompt = (
             f"You are an expert teacher. Explain the core concept of '{topic}' "
-            f"in a concise and brief manner for a student who is currently at the '{level_desc}' stage (Bloom's Taxonomy)."
+            f"in a concise and brief manner (less than 50 words) for a student who is currently at the '{level_desc}' stage (Bloom's Taxonomy)."
         )
         # TODO: add few shot examples for bloom levels or explanation on what they mean so that the explanatino is better?
         # TODO: update prommpt to include ZPD alignment
@@ -207,7 +207,7 @@ class StudentAgent:
         prompt = (
             f"You are a student learning about '{topic}'. You are currently thinking at the '{level_desc}' stage (Bloom's Taxonomy). "
             f"{type_desc} Ask one specific, relevant question to your teacher that demonstrates this level of thinking "
-            f"and helps you move towards the next level."
+            f"and helps you move towards the next level. The question should be less than 15 words maximum."
             # Optional: Add constraint to encourage higher-level questions if appropriate
             # f" Try to ask a question that involves [Applying/Analyzing/Evaluating/Creating] if possible."
         )
