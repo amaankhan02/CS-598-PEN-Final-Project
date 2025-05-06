@@ -261,6 +261,8 @@ class ClassroomEnv(MultiAgentEnv):
             level == StudentAgent.NUM_BLOOM_LEVELS
             for level in new_bloom_levels.values()
         )
+        
+        # if at least one student has reached the max bloom level, terminate the episode - meaning we achieved our goal
         any_students_max_bloom = any(
             level == StudentAgent.NUM_BLOOM_LEVELS
             for level in new_bloom_levels.values()
