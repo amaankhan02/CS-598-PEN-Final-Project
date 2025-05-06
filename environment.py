@@ -489,6 +489,7 @@ class ClassroomEnv(MultiAgentEnv):
         #   + ZPD & question bonuses
         #   + terminal bonus
         # """
+        log_data("teacher reward breakdown:")
         N = self.num_students
 
         # 0.  β‑weights (fallback to defaults if user forgot the key)
@@ -500,22 +501,27 @@ class ClassroomEnv(MultiAgentEnv):
             / max(1, StudentAgent.NUM_BLOOM_LEVELS - old_bloom_levels[s])
             for s in self.students
         ) / N
+        log_data(f"\tProgress: {progress}")
 
         # 2. equity term (negative std‑dev of current Bloom levels)
         mean_lvl = sum(new_bloom_levels.values()) / N
         equity_pen = math.sqrt(
             sum((new_bloom_levels[s] - mean_lvl) ** 2 for s in self.students) / N
         )
+        log_data(f"\tEquity Penalty: {equity_pen}")
 
         # 3. engagement term
         engagement = num_students_asking / N
+        log_data(f"\tEngagement: {engagement}")
 
         # 4. explanation‑quality term (normalised 0‑1)
         exp_norm = exp_quality / StudentAgent.NUM_BLOOM_LEVELS
+        log_data(f"\tExplanation Norm: {exp_norm}")
 
         # 5. time penalty (encourage finishing early)
         time_pen = self.current_step / self.max_steps
-
+        log_data(f"\tTime Penalty: {time_pen}")
+        
         # ----- aggregate everything -----
         teacher_reward = (
             β1 * progress
@@ -577,6 +583,10 @@ class ClassroomEnv(MultiAgentEnv):
             teacher_zpd_bonus += teacher_zpd_bonus_delta
             teacher_zpd_penalty += teacher_zpd_penalty_delta
             student_bloom_bonus_total += student_bloom_bonus_total_delta
+            
+        log_data(f"teacher_zpd_bonus: {teacher_zpd_bonus}")
+        log_data(f"teacher_zpd_penalty: {teacher_zpd_penalty}")
+        log_data(f"student_bloom_bonus_total: {student_bloom_bonus_total}")
 
         # calculate teacher rewards
         self._calculate_teacher_reward(rewards, old_bloom_levels, new_bloom_levels, level_advanced, 

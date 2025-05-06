@@ -17,11 +17,12 @@ DEFAULT_ENV_CONFIG = {
 }
 LOG_DIR = "logs"
 LOG_FILE_NAME = f"{LOG_DIR}/log_experiment_1.txt"  # this will be changed by train.py
-
+# episodes_per_iteration = ceil(train_batch_size / max_steps)
 DEFAULT_TRAINING_CONFIG = {
     "num_iterations": 5,
     "lr": 5e-5,
-    "train_batch_size": 128,
+    "train_batch_size": 32,
+    "sgd_minibatch_size": 16,
     "num_sgd_iter": 10,
 }
 

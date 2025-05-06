@@ -158,7 +158,7 @@ def create_algo_config(env_config):
             lr=DEFAULT_TRAINING_CONFIG["lr"],
             lambda_=0.95,
             train_batch_size=DEFAULT_TRAINING_CONFIG["train_batch_size"],
-            sgd_minibatch_size=64,
+            sgd_minibatch_size=DEFAULT_TRAINING_CONFIG["sgd_minibatch_size"],
             num_sgd_iter=DEFAULT_TRAINING_CONFIG["num_sgd_iter"],
             model={
                 "fcnet_hiddens": [64, 64],
