@@ -14,71 +14,70 @@ import sys
 
 from agents import StudentAgent, TeacherAgent
 from config import DEFAULT_ENV_CONFIG, DEFAULT_TRAINING_CONFIG, METRICS_DIR, LOG_FILE_NAME, LOG_DIR
-from environment import ClassroomEnv
+from environment import ClassroomEnv, log_data
 
-
-class ClassroomCallbacks(DefaultCallbacks):
+# class ClassroomCallbacks(DefaultCallbacks):
     
-    def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
-        print("INSIDE ON_EPISODE_END")
-        # gather statistics at the end of each episode
+#     def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
+#         print("INSIDE ON_EPISODE_END")
+#         # gather statistics at the end of each episode
         
-        # get final avg bloom levels for each student
-        final_bloom_levels = []
-        student_ids = [agent_id for agent_id in episode.agent_rewards.keys() if agent_id.startswith("student")]
+#         # get final avg bloom levels for each student
+#         final_bloom_levels = []
+#         student_ids = [agent_id for agent_id in episode.agent_rewards.keys() if agent_id.startswith("student")]
 
-        print(f"student_ids: {student_ids}")
-        print(f"episode.last_info_for: {episode.last_info_for}")
+#         print(f"student_ids: {student_ids}")
+#         print(f"episode.last_info_for: {episode.last_info_for}")
         
         
-        for agent_id in student_ids:
-            last_info = episode.last_info_for(agent_id)
-            if last_info and "self_bloom_level" in last_info:
-                final_bloom_levels.append(last_info["self_bloom_level"])
-            else:
-                # TODO: handle this case 
-                print("-"*40 + "ERROR A" + "-"*40)
-                print(f"No final bloom level for student {agent_id}")
-                print(f"last_info: {last_info}")
-                print("-"*40 + "ERROR A" + "-"*40)
+#         for agent_id in student_ids:
+#             last_info = episode.last_info_for(agent_id)
+#             if last_info and "self_bloom_level" in last_info:
+#                 final_bloom_levels.append(last_info["self_bloom_level"])
+#             else:
+#                 # TODO: handle this case 
+#                 print("-"*40 + "ERROR A" + "-"*40)
+#                 print(f"No final bloom level for student {agent_id}")
+#                 print(f"last_info: {last_info}")
+#                 print("-"*40 + "ERROR A" + "-"*40)
                 
             
-        if final_bloom_levels:
-            avg_final_bloom = np.mean(final_bloom_levels)
-            episode.custom_metrics["avg_final_bloom"] = avg_final_bloom
-        else:
-            print("-"*40 + "ERROR B" + "-"*40)
-            print(f"No final bloom levels for any students")
-            print("-"*40 + "ERROR B" + "-"*40)
+#         if final_bloom_levels:
+#             avg_final_bloom = np.mean(final_bloom_levels)
+#             episode.custom_metrics["avg_final_bloom"] = avg_final_bloom
+#         else:
+#             print("-"*40 + "ERROR B" + "-"*40)
+#             print(f"No final bloom levels for any students")
+#             print("-"*40 + "ERROR B" + "-"*40)
             
-        # get avg question bloom level for the class and per student
-        all_class_question_levels = []
-        hist_data = episode.hist_data
+#         # get avg question bloom level for the class and per student
+#         all_class_question_levels = []
+#         hist_data = episode.hist_data
         
-        print(f"hist_data: {hist_data}")
-        print(f"len(hist_data): {len(hist_data)}")
-        print(f"hist_data keys: {hist_data.keys()}")
+#         print(f"hist_data: {hist_data}")
+#         print(f"len(hist_data): {len(hist_data)}")
+#         print(f"hist_data keys: {hist_data.keys()}")
         
-        for agent_id in student_ids:
-            if agent_id in hist_data and 'question_bloom_level' in hist_data[agent_id]:
-                print(f"hist_data[agent_id]['question_bloom_level']: {hist_data[agent_id]['question_bloom_level']}")
-                all_class_question_levels.extend(hist_data[agent_id]['question_bloom_level'])
-                student_avg_question_level = np.mean(hist_data[agent_id]['question_bloom_level'])
-                episode.custom_metrics[f"{agent_id}_avg_question_bloom_level"] = student_avg_question_level
-        if all_class_question_levels:
-            avg_question_level = np.mean(all_class_question_levels)
-            episode.custom_metrics["class_avg_question_bloom_level"] = avg_question_level
+#         for agent_id in student_ids:
+#             if agent_id in hist_data and 'question_bloom_level' in hist_data[agent_id]:
+#                 print(f"hist_data[agent_id]['question_bloom_level']: {hist_data[agent_id]['question_bloom_level']}")
+#                 all_class_question_levels.extend(hist_data[agent_id]['question_bloom_level'])
+#                 student_avg_question_level = np.mean(hist_data[agent_id]['question_bloom_level'])
+#                 episode.custom_metrics[f"{agent_id}_avg_question_bloom_level"] = student_avg_question_level
+#         if all_class_question_levels:
+#             avg_question_level = np.mean(all_class_question_levels)
+#             episode.custom_metrics["class_avg_question_bloom_level"] = avg_question_level
         
-        print(f"episode.custom_metrics: {episode.custom_metrics}")
-        print(f"episode.custom_metrics keys: {episode.custom_metrics.keys()}")
+#         print(f"episode.custom_metrics: {episode.custom_metrics}")
+#         print(f"episode.custom_metrics keys: {episode.custom_metrics.keys()}")
         
-        # save episode.custom_metrics to file
-        metrics_file_path = os.path.join(METRICS_DIR, f"metrics_episode_{episode.episode_id}.json")
-        with open(metrics_file_path, "w") as f:
-            print("We're on line 77 - saving episode.custom_metrics to file in ClassroomCallbacks")
-            json.dump(episode.custom_metrics, f)
+#         # save episode.custom_metrics to file
+#         metrics_file_path = os.path.join(METRICS_DIR, f"metrics_episode_{episode.episode_id}.json")
+#         with open(metrics_file_path, "w") as f:
+#             print("We're on line 77 - saving episode.custom_metrics to file in ClassroomCallbacks")
+#             json.dump(episode.custom_metrics, f)
         
-        print(f"Episode {episode.episode_id} completed. Saved metrics to {metrics_file_path}")
+#         print(f"Episode {episode.episode_id} completed. Saved metrics to {metrics_file_path}")
         
                 
 def get_tmp_spaces(env_config):
@@ -119,34 +118,15 @@ def train(num_iterations, algo):
     print(f"\nStarting training for {num_iterations} iterations...")
 
     for i in range(num_iterations):
+        
+        log_data(f"\n------- Starting Iteration {i+1}/{num_iterations} -------")
         result = algo.train()  # one iteration of training
 
         # Print results using RLlib's pretty_print function
-        print(f"\n--- Iteration {i+1}/{num_iterations} ---")
         print(pretty_print(result))
 
         # You can access specific metrics like this:
         print_metrics(result)
-        
-        # save metrics to file
-        metrics_file_path = os.path.join(METRICS_DIR, f"metrics_iter_{i+1}.json")
-        env_runners = result.get("env_runners", {})
-        if not env_runners:
-            print("-"*40 + "ERROR C" + "-"*40)
-            print(f"No env_runners found in result")
-            print(f"result: {result}")
-            print("-"*40 + "ERROR C" + "-"*40)
-        else:
-            if "custom_metrics" in env_runners:
-                with open(metrics_file_path, "w") as f:
-                    json.dump(env_runners.get("custom_metrics", {}), f)
-            else:
-                print("-"*40 + "ERROR D" + "-"*40)
-                print(f"No custom_metrics found in env_runners")
-                print(f"env_runners: {env_runners}")
-                print("-"*40 + "ERROR D" + "-"*40)
-        
-        print(f"Metrics for iteration {i+1} saved to {metrics_file_path}")
 
     # checkpoint_dir = algo.save()
     algo.stop()
@@ -181,8 +161,7 @@ def create_algo_config(env_config):
             sgd_minibatch_size=64,
             num_sgd_iter=DEFAULT_TRAINING_CONFIG["num_sgd_iter"],
             model={
-                # "fcnet_hiddens": [64, 64],
-                "fcnet_hiddens": [32, 32],
+                "fcnet_hiddens": [64, 64],
             },
         )
         .multi_agent(

@@ -16,13 +16,13 @@ DEFAULT_ENV_CONFIG = {
     "teacher_reward_weights": [1.0, 0.5, 0.3, 0.5, 0.05] # [progress, equity, engagement, explanation‑quality, time‑penalty]
 }
 LOG_DIR = "logs"
-LOG_FILE_NAME = f"{LOG_DIR}/log.txt"  # this will be changed by train.py
+LOG_FILE_NAME = f"{LOG_DIR}/log_experiment_1.txt"  # this will be changed by train.py
 
 DEFAULT_TRAINING_CONFIG = {
-    "num_iterations": 1,
+    "num_iterations": 5,
     "lr": 5e-5,
-    "train_batch_size": 64,
-    "num_sgd_iter": 1,
+    "train_batch_size": 128,
+    "num_sgd_iter": 10,
 }
 
 DEFAULT_LLM_CONFIG = {
