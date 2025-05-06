@@ -9,25 +9,25 @@ GEMINI_MODEL_NAME = "gemini-2.0-flash-lite"  # has the highest RPM
 METRICS_DIR = "metrics/testing"
 
 DEFAULT_ENV_CONFIG = {
-    "max_steps": 5,
-    "topic": "Astronomy",
+    "max_steps": 10,
+    "topic": "Theoretical Physics",
     "num_students": 3,
     "student_types": ["beginner", "intermediate", "advanced"],
-    "teacher_reward_weights": [2.0, 0.2, 0.3, 0.5, 0.01] # [progress, equity, engagement, explanation‑quality, time‑penalty]
+    "teacher_reward_weights": [7.5, 0.01, 0.25, 1.0, 0.001] # [progress, equity, engagement, explanation‑quality, time‑penalty]
 }
 LOG_DIR = "logs"
-LOG_FILE_NAME = f"{LOG_DIR}/log_experiment_2.txt"  # this will be changed by train.py
+LOG_FILE_NAME = f"{LOG_DIR}/log_experiment_3.txt"  # this will be changed by train.py
 # episodes_per_iteration = ceil(train_batch_size / max_steps)
 DEFAULT_TRAINING_CONFIG = {
     "num_iterations": 5,
-    "lr": 5e-5,
+    "lr": 8e-5,
     "train_batch_size": 32,
     "sgd_minibatch_size": 16,
     "num_sgd_iter": 10,
 }
 
 DEFAULT_LLM_CONFIG = {
-    "temperature": 0.7,
+    "temperature": 0.9,
     "top_p": 0.9,
     "max_output_tokens": 150,
     "requests_per_minute": 25,  # Gemini-2.0-flash-lite takes 30 requests per minute, so do a bit less
