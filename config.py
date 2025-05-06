@@ -13,10 +13,10 @@ DEFAULT_ENV_CONFIG = {
     "topic": "Astronomy",
     "num_students": 3,
     "student_types": ["beginner", "intermediate", "advanced"],
-    "teacher_reward_weights": [1.0, 0.5, 0.3, 0.5, 0.05] # [progress, equity, engagement, explanation‑quality, time‑penalty]
+    "teacher_reward_weights": [2.0, 0.2, 0.3, 0.5, 0.01] # [progress, equity, engagement, explanation‑quality, time‑penalty]
 }
 LOG_DIR = "logs"
-LOG_FILE_NAME = f"{LOG_DIR}/log_experiment_1.txt"  # this will be changed by train.py
+LOG_FILE_NAME = f"{LOG_DIR}/log_experiment_2.txt"  # this will be changed by train.py
 # episodes_per_iteration = ceil(train_batch_size / max_steps)
 DEFAULT_TRAINING_CONFIG = {
     "num_iterations": 5,

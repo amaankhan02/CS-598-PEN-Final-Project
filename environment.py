@@ -406,7 +406,7 @@ class ClassroomEnv(MultiAgentEnv):
         if level_advanced[student_id]:
             level_delta = new_level - old_level
             if level_delta > 0:
-                w_adv = 1.0
+                w_adv = 2.5
                 advancement_reward = w_adv * level_delta
                 rewards[student_id] += advancement_reward
 
@@ -418,7 +418,7 @@ class ClassroomEnv(MultiAgentEnv):
             improvement = max(0, question_level - old_level)
             denom = max(1, StudentAgent.NUM_BLOOM_LEVELS - old_level)
             question_quality = improvement / denom
-            w_q = 0.5
+            w_q = 0.75
             
             # Reward proportional to the question level (scaled)
             q_reward = question_quality * w_q
@@ -498,7 +498,7 @@ class ClassroomEnv(MultiAgentEnv):
         )
         progress = sum(
             (new_bloom_levels[s] - old_bloom_levels[s])
-            / max(1, StudentAgent.NUM_BLOOM_LEVELS - old_bloom_levels[s])
+            / max(1, StudentAgent.NUM_BLOOM_LEVELS - old_bloom_levels[s] * 0.5 + 1)
             for s in self.students
         ) / N
         log_data(f"\tProgress: {progress}")

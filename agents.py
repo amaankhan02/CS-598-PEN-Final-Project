@@ -138,25 +138,28 @@ class StudentAgent:
         if teacher_action == TeacherAgent.ACTION_SIMPLE:
             # Simple actions are most effective for moving from Remember -> Understand or Understand -> Apply
             if self.current_bloom_level <= self.BLOOM_UNDERSTAND:
-                base_prob = 0.7
+                base_prob = 0.8
             elif self.current_bloom_level == self.BLOOM_APPLY:
-                base_prob = 0.3 # Less effective for higher levels
+                base_prob = 0.45 # Less effective for higher levels
             else:
-                base_prob = 0.1 # Least effective
+                base_prob = 0.2 # Least effective
 
         elif teacher_action == TeacherAgent.ACTION_COMPLEX:
             # Complex actions are needed for higher levels
             if self.current_bloom_level == self.BLOOM_REMEMBER:
-                base_prob = 0.1 # Not very effective for beginners
+                base_prob = 0.2 # Not very effective for beginners
             elif self.current_bloom_level == self.BLOOM_UNDERSTAND:
-                base_prob = 0.4
+                base_prob = 0.55
             elif self.current_bloom_level == self.BLOOM_APPLY:
-                base_prob = 0.8 # Effective for Apply -> Analyze
+                base_prob = 0.85 # Effective for Apply -> Analyze
             elif self.current_bloom_level >= self.BLOOM_ANALYZE:
-                base_prob = 0.9 # Very effective for Analyze -> Evaluate -> Create
+                base_prob = 0.98 # Very effective for Analyze -> Evaluate -> Create
 
         # Apply student's learning coefficient
-        final_prob = base_prob * self.learning_coef
+        baseline_study_prob = 0.1
+        effective_base_prob = min(base_prob + baseline_study_prob, 1.0)
+
+        final_prob = effective_base_prob * self.learning_coef
         return np.clip(final_prob, 0.0, 1.0) # Ensure probability is between 0 and 1
 
     def update_state(self, teacher_action, student_action) -> bool:
