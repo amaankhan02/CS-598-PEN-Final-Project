@@ -192,15 +192,11 @@ class ClassroomEnv(MultiAgentEnv):
                 student_action = action_dict[student_id]
                 student_actions[student_id] = student_action
                 
-                print(
-                    f"{student_id} Action: {student_action} (Current Bloom: {student.current_bloom_level})"
-                )
+                # print(f"{student_id} Action: {student_action} (Current Bloom: {student.current_bloom_level})")
                 log_data(f"{student_id} Action: {student_action_to_str(student_action)} (Current Bloom: {student_bloom_level_to_str(student.current_bloom_level)})")
 
                 # Update student state (Bloom level)
-                level_advanced[student_id] = student.update_state(
-                    teacher_action, student_action
-                )
+                level_advanced[student_id] = student.update_state(teacher_action, student_action)
                 log_data(f"{student_id} Level Advanced: {'TRUE' if level_advanced[student_id] else 'FALSE'}")
 
                 # If student asks a question, generate it and analyze its Bloom level
@@ -209,20 +205,15 @@ class ClassroomEnv(MultiAgentEnv):
                     questions[student_id] = question_text
                     print(f"[LLM Output] {student_id} Question: {question_text}")
                     # log_data(f"{student_id} Question: {question_text}")
-                    student_level_desc = BLOOM_LEVEL_MAP.get(
-                        student.current_bloom_level, "Unknown"
-                    )
-                    log_data(f"{student_id} Student Level Desc: {student_level_desc}")
-                    estimated_level = analyze_text_for_bloom(
-                        question_text, student_level_desc, self.topic
-                    )
+                    student_level_desc = BLOOM_LEVEL_MAP.get(student.current_bloom_level, "Unknown")
+                    log_data(f"{student_id} Current Student Bloom Level Desc: {student_level_desc}")
+                    
+                    estimated_level = analyze_text_for_bloom(question_text, student_level_desc, self.topic)
                     estimated_bloom_levels[student_id] = estimated_level
-                    log_data(f"{student_id} Estimated Bloom Level: {estimated_level}")
-                    student.last_question_bloom_level = (
-                        estimated_level  # Store in agent state
-                    )
+                    
+                    log_data(f"{student_id}: Estimated Question Bloom Level and Description: {estimated_level} and {student_bloom_level_to_str(estimated_level)}")
+                    student.last_question_bloom_level = estimated_level
             else:
-                # print(f"Warning: No action provided for {student_id}")
                 log_data(f"Warning: No action provided for {student_id}")
 
         # Teacher generates explanation if applicable (after student actions)
@@ -247,8 +238,8 @@ class ClassroomEnv(MultiAgentEnv):
             student_id: student.current_bloom_level
             for student_id, student in self.students.items()
         }
-        print(f"Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}")
-        log_data(f"Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}")
+        # print(f"Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}")
+        log_data(f"NEW Bloom levels update: {old_bloom_levels} -> {new_bloom_levels}. ")  # prints a dictionary with student_id as key and bloom level as value
 
         # calculate rewards
         rewards = self._calculate_rewards(
@@ -259,19 +250,24 @@ class ClassroomEnv(MultiAgentEnv):
             level_advanced,
             estimated_bloom_levels,  # Pass estimated levels from analysis
         )
-        print(f"Rewards calculated: {rewards}")
+        # print(f"Rewards calculated: {rewards}")
         log_data(f"Rewards calculated: {rewards}")
 
         # Terminate if all students reach the highest Bloom level
-        all_students_max_bloom = any(
+        all_students_max_bloom = all(
             level == StudentAgent.NUM_BLOOM_LEVELS
             for level in new_bloom_levels.values()
         )
-        terminate_episode = all_students_max_bloom
+        any_students_max_bloom = any(
+            level == StudentAgent.NUM_BLOOM_LEVELS
+            for level in new_bloom_levels.values()
+        )
+        
+        terminate_episode = any_students_max_bloom
         truncate_episode = self.current_step >= self.max_steps
         # truncate_episode = False
 
-        terminated = {agent_id: all_students_max_bloom for agent_id in self._agent_ids}
+        terminated = {agent_id: any_students_max_bloom for agent_id in self._agent_ids}
         truncated = {agent_id: truncate_episode for agent_id in self._agent_ids}
         terminated["__all__"] = terminate_episode
         truncated["__all__"] = truncate_episode
