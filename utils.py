@@ -131,7 +131,21 @@ class LLMClient:
                     time.sleep(delay)
 
         return "[Error: LLM call failed unexpectedly]"
+def analyze_explanation_quality(text, topic="the topic"):
+    """
+    Classifies a teacher explanation on Bloom's 1‑6 scale, returns int.
+    """
+    prompt = f"""
+    Evaluate the following teacher explanation of '{topic}'.
+    Only output the Bloom's Taxonomy level (1‑6) that best describes
+    the cognitive complexity of the explanation.
 
+    Explanation: \"\"\"{text}\"\"\"
+
+    Integer Level:"""
+    resp = get_gemini_response(prompt, max_retries=3, delay=2)
+    m = re.search(r"\b([1-6])\b", resp)
+    return int(m.group(1)) if m else 1
 
 # --- Global Instance ---
 # Create a single instance of the client for the application to use.
